@@ -1,0 +1,22 @@
+name = "webchat-agent"
+compatibility_date = "2024-06-01"
+
+# Cloudflare D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "webchat-agent-db"
+database_id = ""   # Run: wrangler d1 create webchat-agent-db → paste ID here
+
+[vars]
+SITE_URL = "https://evanjlchen.com"
+DEV_MODE = "true"    # Set to "false" for production (enables Google OAuth)
+
+# For local development, put secrets in .dev.vars file:
+#   JWT_SECRET=<openssl rand -hex 32>
+#   ENCRYPTION_KEY=<openssl rand -hex 32>
+#
+# For production, set via wrangler secret put:
+#   GOOGLE_CLIENT_ID
+#   GOOGLE_CLIENT_SECRET
+#   JWT_SECRET
+#   ENCRYPTION_KEY
