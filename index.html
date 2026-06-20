@@ -676,11 +676,11 @@
         const bubbleClass = isUser ? 'msg-bubble' : 'msg-bubble glass';
 
         return `
-          <div class="msg ${cls}">
+          <div class="msg ${cls}" id="${msg.id}">
             <div class="msg-label">${label}</div>
             <div class="${bubbleClass}">
               ${filesHtml}
-              <div class="${isUser ? '' : 'md-content'}">${content}</div>
+              <div class="${isUser ? '' : 'md-content'}" id="content-${msg.id}">${content}</div>
             </div>
           </div>
         `;
@@ -689,7 +689,7 @@
       // Typing indicator
       if (state.isGenerating) {
         container.innerHTML += `
-          <div class="typing glass animate-fade-in">
+          <div class="typing glass animate-fade-in" id="typing-indicator">
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
@@ -792,12 +792,29 @@
         // Stream the response
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let isFirstChunk = true;
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          
+          if (isFirstChunk) {
+            state.isGenerating = false; // Remove typing indicator once streaming starts
+            renderMessages();
+            isFirstChunk = false;
+          }
+
           assistantMsg.content += decoder.decode(value, { stream: true });
-          renderMessages();
+          
+          const contentDiv = document.getElementById(`content-${assistantMsg.id}`);
+          if (contentDiv) {
+            contentDiv.innerHTML = renderMarkdown(assistantMsg.content);
+          } else {
+            renderMessages();
+          }
+          
+          const container = $('#chat-container');
+          container.scrollTop = container.scrollHeight;
         }
       } catch (err) {
         state.error = err.message || 'Failed to send message';
