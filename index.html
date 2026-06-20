@@ -398,6 +398,12 @@
       .hide-mobile { display: none !important; }
       .model-btn { min-width: 120px; font-size: 0.8rem; }
       .msg-bubble { max-width: 88%; }
+      .brand-name { display: none; } /* Hide text to save space */
+      #sidebar {
+        position: fixed; top: var(--header-height); bottom: 0; left: 0;
+        z-index: 200; background: rgba(15, 15, 25, 0.98);
+        backdrop-filter: blur(24px); border-right: 1px solid rgba(255,255,255,0.1);
+      }
     }
   </style>
 </head>
@@ -575,7 +581,7 @@
           ? `<img src="${state.user.image}" alt="" class="user-avatar">`
           : '';
         const name = state.user.name 
-          ? `<span style="font-size:0.85rem; font-weight:500;">${escHtml(state.user.name)}</span>` 
+          ? `<span class="hide-mobile" style="font-size:0.85rem; font-weight:500;">${escHtml(state.user.name)}</span>` 
           : '';
         area.innerHTML = `
           <div style="display:flex;align-items:center;gap:8px;">
