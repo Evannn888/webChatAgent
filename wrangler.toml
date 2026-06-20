@@ -9,7 +9,7 @@ database_name = "webchat-agent-db"
 database_id = "2603af24-ef01-4ac4-80cb-0bd30d040603"
 
 [vars]
-SITE_URL = "https://evanjlchen.com"
+SITE_URL = "https://chat.evanjlchen.com"
 DEV_MODE = "false"
 GOOGLE_CLIENT_ID = "45991928851-c0944ihsc446cf8rh3o0ut0n0f1o9fsb.apps.googleusercontent.com"
 # For local development, put secrets in .dev.vars file:
