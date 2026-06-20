@@ -36,37 +36,41 @@ export async function onRequestGet(context) {
  * POST /api/auth/login → Handle local dev login (email + name form).
  */
 export async function onRequestPost(context) {
-  const body = await context.request.json();
-  const { email, name } = body;
+  try {
+    const body = await context.request.json();
+    const { email, name } = body;
 
-  if (!email) {
-    return Response.json({ error: 'Email is required' }, { status: 400 });
+    if (!email) {
+      return Response.json({ error: 'Email is required' }, { status: 400 });
+    }
+
+    // Generate a stable ID from the email
+    const id = 'dev_' + await hashString(email);
+
+    // Upsert user in D1
+    await context.env.DB.prepare(`
+      INSERT INTO user (id, email, name, image)
+      VALUES (?, ?, ?, NULL)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name
+    `).bind(id, email, name || email.split('@')[0], ).run();
+
+    // Issue JWT session
+    const jwt = await signJWT(
+      { sub: id, email, name: name || email.split('@')[0], image: null },
+      context.env.JWT_SECRET,
+    );
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': `session=${jwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
+      },
+    });
+  } catch (error) {
+    return Response.json({ error: error.message, stack: error.stack }, { status: 500 });
   }
-
-  // Generate a stable ID from the email
-  const id = 'dev_' + await hashString(email);
-
-  // Upsert user in D1
-  await context.env.DB.prepare(`
-    INSERT INTO user (id, email, name, image)
-    VALUES (?, ?, ?, NULL)
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name
-  `).bind(id, email, name || email.split('@')[0], ).run();
-
-  // Issue JWT session
-  const jwt = await signJWT(
-    { sub: id, email, name: name || email.split('@')[0], image: null },
-    context.env.JWT_SECRET,
-  );
-
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Set-Cookie': `session=${jwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
-    },
-  });
 }
 
 /**
