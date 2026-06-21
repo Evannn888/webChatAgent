@@ -298,10 +298,7 @@ async function* streamGemini(apiKey, model, messages) {
  * Anthropic: Claude 3.5+ models. Enable for all claude- models.
  */
 function supportsThinking(model) {
-  // Claude models: enable thinking for claude-opus, claude-sonnet, claude-haiku
-  if (/^claude-(opus|sonnet|haiku)/.test(model)) return true;
-  // Default: off (avoid API errors on unsupported models)
-  return false;
+  return /^claude-(opus|sonnet|haiku)/.test(model);
 }
 
 /* ── Reasoning extractor helper ─────────────────────────────── */

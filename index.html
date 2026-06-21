@@ -520,12 +520,26 @@
       return div.innerHTML;
     }
 
-    /**
-     * Render markdown with thinking-block support.
-     * - Finds <think>...</think> sections and wraps them in <details> collapsible blocks
-     * - Handles unclosed <think> during streaming
-     * - Each section is independently parsed by marked for correct markdown rendering
-     */
+    function parseMessage(msg) {
+      const m = msg.content?.match(/<\|usage:([^|]+)\|>/);
+      if (m) {
+        try { msg.usage = JSON.parse(m[1]); } catch {}
+        msg.content = msg.content.replace(/<\|usage:[^|]+\|>/, '');
+      }
+      return msg;
+    }
+
+    function injectUsageBadge(msg) {
+      const msgDiv = document.getElementById(msg.id);
+      if (!msgDiv || !msg.usage) return;
+      const existing = msgDiv.querySelector('.msg-usage');
+      if (existing) existing.remove();
+      const badge = document.createElement('div');
+      badge.className = 'msg-usage';
+      badge.textContent = `🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens`;
+      msgDiv.appendChild(badge);
+    }
+
     function renderMarkdown(text) {
       try {
         let result = '';
@@ -650,16 +664,6 @@
       if (!dd.contains(e.target) && !btn.contains(e.target)) dd.classList.add('hidden');
     });
 
-    function parseMessage(msg) {
-      // Extract usage from content if present
-      const usageMatch = msg.content?.match(/<\|usage:([^|]+)\|>/);
-      if (usageMatch) {
-        try { msg.usage = JSON.parse(usageMatch[1]); } catch {}
-        msg.content = msg.content.replace(/<\|usage:[^|]+\|>/, '');
-      }
-      return msg;
-    }
-
     /* ══════════════════════════════════════════════════════════
        Chat Rendering
        ══════════════════════════════════════════════════════════ */
@@ -740,24 +744,7 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       Helpers
-       ══════════════════════════════════════════════════════════ */
-
-    function injectUsageBadge(msg) {
-      const msgDiv = document.getElementById(msg.id);
-      if (!msgDiv || !msg.usage) return;
-      // Remove existing badge
-      const existing = msgDiv.querySelector('.msg-usage');
-      if (existing) existing.remove();
-      // Create new badge
-      const badge = document.createElement('div');
-      badge.className = 'msg-usage';
-      badge.textContent = `🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens`;
-      msgDiv.appendChild(badge);
-    }
-
-    /* ══════════════════════════════════════════════════════════
-       Progressive display helper
+       Progressive display
        ══════════════════════════════════════════════════════════ */
 
     function startProgressiveDisplay(msg) {
