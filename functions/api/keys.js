@@ -49,7 +49,7 @@ export async function onRequestPost(context) {
     return Response.json({ error: 'provider and key are required' }, { status: 400 });
   }
 
-  const validProviders = ['openai', 'anthropic', 'gemini', 'deepseek'];
+  const validProviders = ['openai', 'claude', 'gemini', 'deepseek', 'openrouter'];
   if (!validProviders.includes(provider)) {
     return Response.json(
       { error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` },
