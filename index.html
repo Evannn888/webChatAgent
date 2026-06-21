@@ -650,6 +650,16 @@
       if (!dd.contains(e.target) && !btn.contains(e.target)) dd.classList.add('hidden');
     });
 
+    function parseMessage(msg) {
+      // Extract usage from content if present
+      const usageMatch = msg.content?.match(/<\|usage:([^|]+)\|>/);
+      if (usageMatch) {
+        try { msg.usage = JSON.parse(usageMatch[1]); } catch {}
+        msg.content = msg.content.replace(/<\|usage:[^|]+\|>/, '');
+      }
+      return msg;
+    }
+
     /* ══════════════════════════════════════════════════════════
        Chat Rendering
        ══════════════════════════════════════════════════════════ */
@@ -678,8 +688,12 @@
             `<span class="msg-file-tag">📎 ${escHtml(f.name)}</span>`).join('')}</div>`;
         }
 
-        const content = msg.content
-          ? (isUser ? escHtml(msg.content) : renderMarkdown(msg.content))
+        // Strip any residual usage tokens from content before rendering
+        const cleanContent = msg.content
+          ? msg.content.replace(/<\|usage:[^|]+\|>/g, '')
+          : '';
+        const content = cleanContent
+          ? (isUser ? escHtml(cleanContent) : renderMarkdown(cleanContent))
           : (isUser ? '' : '<span style="opacity:0.4">…</span>');
 
         // Token usage badge
@@ -723,6 +737,23 @@
       }
 
       container.scrollTop = container.scrollHeight;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       Helpers
+       ══════════════════════════════════════════════════════════ */
+
+    function injectUsageBadge(msg) {
+      const msgDiv = document.getElementById(msg.id);
+      if (!msgDiv || !msg.usage) return;
+      // Remove existing badge
+      const existing = msgDiv.querySelector('.msg-usage');
+      if (existing) existing.remove();
+      // Create new badge
+      const badge = document.createElement('div');
+      badge.className = 'msg-usage';
+      badge.textContent = `🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens`;
+      msgDiv.appendChild(badge);
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -845,24 +876,13 @@
 
           let text = decoder.decode(value, { stream: true });
 
-          // Parse usage token from stream
-          const usageMatch = text.match(/<\|usage:(\{.*?\})\|>/);
+          // Parse usage token from stream (format: <|usage:{"input":N,"output":M}|>)
+          const usageMatch = text.match(/<\|usage:([^|]+)\|>/);
           if (usageMatch) {
             try { assistantMsg.usage = JSON.parse(usageMatch[1]); } catch {}
-            text = text.replace(/<\|usage:\{.*?\}\|>/, '');
+            text = text.replace(/<\|usage:[^|]+\|>/, '');
+            injectUsageBadge(assistantMsg);
             if (!text.trim()) continue;
-            // Inject usage badge into the message DOM directly
-            const msgDiv = document.getElementById(assistantMsg.id);
-            if (msgDiv && assistantMsg.usage) {
-              const badge = document.createElement('div');
-              badge.className = 'msg-usage';
-              const total = assistantMsg.usage.input + (assistantMsg.usage.output || 0);
-              badge.textContent = `🪙 ${assistantMsg.usage.input}+${assistantMsg.usage.output || 0} = ${total} tokens`;
-              // Remove existing badge if any, then append
-              const existing = msgDiv.querySelector('.msg-usage');
-              if (existing) existing.remove();
-              msgDiv.appendChild(badge);
-            }
           }
 
           assistantMsg.content += text;
@@ -878,14 +898,10 @@
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          // User cancelled — just mark as stopped
-          if (!assistantMsg.content) {
-            assistantMsg.content = '[Generation stopped]';
-          }
+          if (!assistantMsg.content) assistantMsg.content = '[Generation stopped]';
         } else {
           state.error = err.message || 'Failed to send message';
         }
-        // Stop progressive display
         assistantMsg._stopDisplay = true;
         if (assistantMsg._displayTimer) {
           cancelAnimationFrame(assistantMsg._displayTimer);
@@ -896,13 +912,16 @@
         state.isGenerating = false;
         showStopButton(false);
 
+        // Inject usage badge if present (normal completion path)
+        if (assistantMsg.usage && !state.error) {
+          injectUsageBadge(assistantMsg);
+          // Also do final render to ensure content is complete
+          const contentDiv = document.getElementById(`content-${assistantMsg.id}`);
+          if (contentDiv) contentDiv.innerHTML = renderMarkdown(assistantMsg.content);
+        }
+
         if (state.error || assistantMsg._stopDisplay) {
           renderMessages();
-        }
-        // Ensure final render if progressive display was stopped
-        if (assistantMsg._stopDisplay) {
-          const finalDiv = document.getElementById(`content-${assistantMsg.id}`);
-          if (finalDiv) finalDiv.innerHTML = renderMarkdown(assistantMsg.content);
         }
 
         input.focus();
@@ -1001,7 +1020,7 @@
         const res = await fetch(`/api/sessions/${id}`);
         const data = await res.json();
         if (data.messages) {
-          state.messages = data.messages.map(m => ({ role: m.role, content: m.content }));
+          state.messages = data.messages.map(m => parseMessage({ role: m.role, content: m.content }));
           renderMessages();
         }
       } catch (err) {
