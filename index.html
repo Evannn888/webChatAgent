@@ -220,6 +220,11 @@
     .msg-assistant .msg-bubble { border-radius: 18px 18px 18px 4px; }
     .msg-files { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; opacity: 0.8; font-size: 0.8rem; }
     .msg-file-tag { padding: 2px 8px; background: rgba(255,255,255,0.1); border-radius: 4px; }
+    .msg-usage {
+      margin-top: 4px; margin-left: 12px;
+      font-size: 0.7rem; color: var(--text-muted);
+      opacity: 0.7;
+    }
 
     .typing-indicator { margin-bottom: 16px; animation: fadeIn 0.3s var(--ease-out); }
     .typing-indicator .msg-bubble { display: inline-flex; align-items: center; gap: 8px; opacity: 0.85; }
@@ -677,6 +682,13 @@
           ? (isUser ? escHtml(msg.content) : renderMarkdown(msg.content))
           : (isUser ? '' : '<span style="opacity:0.4">…</span>');
 
+        // Token usage badge
+        let usageHtml = '';
+        if (msg.usage && msg.usage.input > 0) {
+          const total = msg.usage.input + (msg.usage.output || 0);
+          usageHtml = `<div class="msg-usage">🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${total} tokens</div>`;
+        }
+
         return `
           <div class="msg ${cls}" id="${msg.id}">
             <div class="msg-label">${label}</div>
@@ -684,6 +696,7 @@
               ${filesHtml}
               <div class="${isUser ? '' : 'md-content'}" id="content-${msg.id}">${content}</div>
             </div>
+            ${usageHtml}
           </div>`;
       }).join('');
 
@@ -830,7 +843,28 @@
           const { done, value } = await reader.read();
           if (done) break;
 
-          const text = decoder.decode(value, { stream: true });
+          let text = decoder.decode(value, { stream: true });
+
+          // Parse usage token from stream
+          const usageMatch = text.match(/<\|usage:(\{.*?\})\|>/);
+          if (usageMatch) {
+            try { assistantMsg.usage = JSON.parse(usageMatch[1]); } catch {}
+            text = text.replace(/<\|usage:\{.*?\}\|>/, '');
+            if (!text.trim()) continue;
+            // Inject usage badge into the message DOM directly
+            const msgDiv = document.getElementById(assistantMsg.id);
+            if (msgDiv && assistantMsg.usage) {
+              const badge = document.createElement('div');
+              badge.className = 'msg-usage';
+              const total = assistantMsg.usage.input + (assistantMsg.usage.output || 0);
+              badge.textContent = `🪙 ${assistantMsg.usage.input}+${assistantMsg.usage.output || 0} = ${total} tokens`;
+              // Remove existing badge if any, then append
+              const existing = msgDiv.querySelector('.msg-usage');
+              if (existing) existing.remove();
+              msgDiv.appendChild(badge);
+            }
+          }
+
           assistantMsg.content += text;
 
           // Remove typing indicator on first content

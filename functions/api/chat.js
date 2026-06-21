@@ -147,7 +147,10 @@ async function* streamOpenAI(apiKey, model, messages) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages, stream: true }),
+    body: JSON.stringify({
+      model, messages, stream: true,
+      stream_options: { include_usage: true },
+    }),
   });
 
   if (!res.ok) {
@@ -155,7 +158,16 @@ async function* streamOpenAI(apiKey, model, messages) {
     throw new Error(`OpenAI API error ${res.status}: ${text}`);
   }
 
-  yield* parseSSE(res.body, makeReasoningExtractor());
+  const extractor = makeReasoningExtractor();
+  let usage = null;
+  yield* parseSSE(res.body, (json) => {
+    if (json.usage) {
+      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
+      return null;
+    }
+    return extractor(json);
+  });
+  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── Anthropic ─────────────────────────────────────────────── */
@@ -186,40 +198,43 @@ async function* streamAnthropic(apiKey, model, messages) {
   }
 
   let thinking = false;
+  let usage = null;
   yield* parseSSE(res.body, (json) => {
-    // Handle API errors in stream
     if (json.type === 'error') {
       throw new Error(json.error?.message || 'Anthropic stream error');
     }
+    // Capture input tokens from message_start
+    if (json.type === 'message_start' && json.message?.usage?.input_tokens) {
+      usage = { input: json.message.usage.input_tokens, output: 0 };
+      return null;
+    }
+    // Capture output tokens from message_delta
+    if (json.type === 'message_delta' && json.usage?.output_tokens) {
+      if (usage) usage.output = json.usage.output_tokens;
+      else usage = { input: 0, output: json.usage.output_tokens };
+      return null;
+    }
     if (json.type === 'content_block_delta') {
-      // Handle thinking deltas
       if (json.delta?.thinking) {
         let chunk = '';
-        if (!thinking) {
-          thinking = true;
-          chunk += '<think>\n';
-        }
+        if (!thinking) { thinking = true; chunk += '<think>\n'; }
         chunk += json.delta.thinking;
         return chunk;
       }
-      // Handle text deltas — close thinking block if open
       if (json.delta?.text) {
         let chunk = '';
-        if (thinking) {
-          thinking = false;
-          chunk += '\n</think>\n\n';
-        }
+        if (thinking) { thinking = false; chunk += '\n</think>\n\n'; }
         chunk += json.delta.text;
         return chunk;
       }
     }
-    // Handle start of thinking block signal
     if (json.type === 'content_block_start' && json.content_block?.type === 'thinking') {
       thinking = true;
       return '<think>\n';
     }
     return null;
   });
+  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── Google Gemini ─────────────────────────────────────────── */
@@ -245,33 +260,35 @@ async function* streamGemini(apiKey, model, messages) {
   }
 
   let thinking = false;
+  let usage = null;
   yield* parseSSE(res.body, (json) => {
+    // Capture usage metadata
+    if (json.usageMetadata) {
+      usage = {
+        input: json.usageMetadata.promptTokenCount || 0,
+        output: json.usageMetadata.candidatesTokenCount || 0,
+      };
+      return null;
+    }
     const parts = json.candidates?.[0]?.content?.parts;
     if (!parts?.length) return null;
 
     const part = parts[0];
-    // Handle thinking / thought content
     if (part.thought) {
       let chunk = '';
-      if (!thinking) {
-        thinking = true;
-        chunk += '<think>\n';
-      }
+      if (!thinking) { thinking = true; chunk += '<think>\n'; }
       chunk += part.thought;
       return chunk;
     }
-    // Handle regular text — close thinking block if open
     if (part.text) {
       let chunk = '';
-      if (thinking) {
-        thinking = false;
-        chunk += '\n</think>\n\n';
-      }
+      if (thinking) { thinking = false; chunk += '\n</think>\n\n'; }
       chunk += part.text;
       return chunk;
     }
     return null;
   });
+  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── Helpers ────────────────────────────────────────────────── */
@@ -335,7 +352,10 @@ async function* streamDeepSeek(apiKey, model, messages) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages, stream: true }),
+    body: JSON.stringify({
+      model, messages, stream: true,
+      stream_options: { include_usage: true },
+    }),
   });
 
   if (!res.ok) {
@@ -343,7 +363,16 @@ async function* streamDeepSeek(apiKey, model, messages) {
     throw new Error(`DeepSeek API error ${res.status}: ${text}`);
   }
 
-  yield* parseSSE(res.body, makeReasoningExtractor());
+  const extractor = makeReasoningExtractor();
+  let usage = null;
+  yield* parseSSE(res.body, (json) => {
+    if (json.usage) {
+      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
+      return null;
+    }
+    return extractor(json);
+  });
+  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── OpenRouter (OpenAI-compatible) ────────────────────────── */
@@ -355,7 +384,10 @@ async function* streamOpenRouter(apiKey, model, messages) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages, stream: true }),
+    body: JSON.stringify({
+      model, messages, stream: true,
+      stream_options: { include_usage: true },
+    }),
   });
 
   if (!res.ok) {
@@ -363,7 +395,16 @@ async function* streamOpenRouter(apiKey, model, messages) {
     throw new Error(`OpenRouter API error ${res.status}: ${text}`);
   }
 
-  yield* parseSSE(res.body, makeReasoningExtractor());
+  const extractor = makeReasoningExtractor();
+  let usage = null;
+  yield* parseSSE(res.body, (json) => {
+    if (json.usage) {
+      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
+      return null;
+    }
+    return extractor(json);
+  });
+  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── Shared SSE parser ─────────────────────────────────────── */
