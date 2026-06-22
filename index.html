@@ -14,7 +14,6 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 
   <script>
     tailwind.config = {
@@ -41,7 +40,65 @@
   </script>
 
   <style>
-    [x-cloak] { display: none !important; }
+    /* ── Light / Dark Theme ──────────────────────────────────── */
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface2: #f3f4f6;
+      --surface3: #e5e7eb;
+      --text: #111827;
+      --text2: #6b7280;
+      --muted: #9ca3af;
+      --border: rgba(0,0,0,0.06);
+      --glass-bg: rgba(255,255,255,0.8);
+      --glass-border: rgba(0,0,0,0.06);
+      --glass-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      --accent-text: #6c5ce7;
+      --accent-light: rgba(108,92,231,0.06);
+      --accent-border: rgba(108,92,231,0.15);
+      --error-bg: rgba(239,68,68,0.06);
+      --error-border: rgba(239,68,68,0.2);
+      --input-bg: #f9fafb;
+      --header-bg: rgba(255,255,255,0.85);
+      --code-bg: rgba(0,0,0,0.04);
+      --bubble-bg: #f9fafb;
+      --hover-bg: rgba(0,0,0,0.03);
+      --hover-text: #111827;
+      --modal-overlay: rgba(0,0,0,0.4);
+    }
+    .dark {
+      --bg: #0f0f19;
+      --surface: #1a1a2e;
+      --surface2: #1a1a2e;
+      --surface3: #252540;
+      --text: #f0f0f5;
+      --text2: #a0a0b8;
+      --muted: #6b6b82;
+      --border: rgba(255,255,255,0.08);
+      --glass-bg: rgba(15,15,25,0.72);
+      --glass-border: rgba(255,255,255,0.08);
+      --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      --accent-text: #a29bfe;
+      --accent-light: rgba(108,92,231,0.06);
+      --accent-border: rgba(108,92,231,0.15);
+      --error-bg: rgba(255,107,107,0.1);
+      --error-border: rgba(255,107,107,0.25);
+      --input-bg: #1a1a2e;
+      --header-bg: rgba(15,15,25,0.85);
+      --code-bg: rgba(255,255,255,0.06);
+      --bubble-bg: rgba(255,255,255,0.05);
+      --hover-bg: rgba(255,255,255,0.05);
+      --hover-text: #f0f0f5;
+      --modal-overlay: rgba(0,0,0,0.6);
+    }
+
+    /* Apply theme variables globally */
+    body { background: var(--bg); color: var(--text); }
+    .glass-panel { background: var(--glass-bg); border-color: var(--glass-border); box-shadow: var(--glass-shadow); }
+    ::placeholder { color: var(--muted); opacity: 0.7; }
+    #file-preview { background: var(--surface); border-color: var(--border); }
+    #input-error { background: var(--error-bg); border-color: var(--error-border); }
+
     /* Thin scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -55,38 +112,41 @@
     .md-content p { margin-bottom: 0.75em; }
     .md-content ul, .md-content ol { padding-left: 1.5em; margin-bottom: 0.75em; }
     .md-content li { margin-bottom: 0.3em; }
-    .md-content a { color: #a29bfe; text-decoration: underline; text-underline-offset: 2px; }
-    .md-content a:hover { color: #c0b8ff; }
-    .md-content code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-family: 'JetBrains Mono','Fira Code',monospace; }
+    .md-content a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+    .md-content code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-family: 'JetBrains Mono','Fira Code',monospace; }
     .md-content pre { margin: 0.75em 0; border-radius: 12px; overflow: hidden; }
     .md-content pre code { background: none; padding: 0; }
-    .md-content blockquote { border-left: 3px solid #6c5ce7; padding-left: 1em; margin: 0.75em 0; color: #a0a0b8; }
+    .md-content blockquote { border-left: 3px solid #6c5ce7; padding-left: 1em; margin: 0.75em 0; color: var(--text2); }
     .md-content table { border-collapse: collapse; margin: 0.75em 0; width: 100%; }
-    .md-content th, .md-content td { padding: 8px 12px; border: 1px solid rgba(255,255,255,0.08); text-align: left; }
-    .md-content th { background: #252540; font-weight: 600; }
+    .md-content th, .md-content td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+    .md-content th { background: var(--surface3); font-weight: 600; }
     .md-content img { max-width: 100%; border-radius: 8px; }
 
     /* Thinking block */
-    .think-block { margin: 0.25em 0 0.5em; border-radius: 8px; background: rgba(108,92,231,0.05); border: 1px solid rgba(108,92,231,0.12); overflow: hidden; }
-    .think-block[open] { background: rgba(108,92,231,0.06); border-color: rgba(108,92,231,0.18); }
-    .think-block > summary { padding: 8px 14px; font-size: 0.8rem; font-weight: 600; color: #a29bfe; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; list-style: none; outline: none; opacity: 0.9; }
+    .think-block { margin: 0.25em 0 0.5em; border-radius: 8px; background: var(--accent-light); border: 1px solid var(--accent-border); overflow: hidden; }
+    .think-block[open] { background: var(--accent-light); border-color: var(--accent-border); }
+    .think-block > summary { padding: 8px 14px; font-size: 0.8rem; font-weight: 600; color: var(--accent-text); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; list-style: none; outline: none; opacity: 0.9; }
     .think-block > summary::-webkit-details-marker { display: none; }
     .think-block > summary::marker { display: none; content: ''; }
-    .think-block > summary:hover { color: #c0b8ff; opacity: 1; }
     .think-block > summary::before { content: '\01F4AD'; font-size: 0.85em; flex-shrink: 0; }
     .think-block > summary::after { content: '\25B8'; margin-left: auto; font-size: 0.65em; opacity: 0.5; }
     .think-block[open] > summary::after { transform: rotate(90deg); }
-    .think-content { padding: 0 14px 10px; font-size: 0.82rem; color: #6b6b82; line-height: 1.6; border-top: 1px solid rgba(108,92,231,0.08); padding-top: 8px; }
+    .think-content { padding: 0 14px 10px; font-size: 0.82rem; color: var(--muted); line-height: 1.6; border-top: 1px solid var(--accent-border); padding-top: 8px; }
     .think-content > :first-child { margin-top: 0; }
     .think-content > :last-child { margin-bottom: 0; }
     .think-content p { margin-bottom: 0.4em; }
-    .think-content code { background: rgba(255,255,255,0.04); font-size: 0.85em; }
+    .think-content code { background: var(--code-bg); font-size: 0.85em; }
     .think-content pre { margin: 0.3em 0; }
+
+    /* Assistant bubble */
+    .bubble-assistant { background: var(--bubble-bg); border: 1px solid var(--border); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: var(--glass-shadow); }
 
     /* Session delete button hover */
     .session-del { opacity: 0; transition: opacity 0.2s; }
     .session-item:hover .session-del { opacity: 1; }
     .session-del:hover { color: #ff6b6b !important; }
+    .session-item { border-color: var(--border); }
+    .session-item:hover { background: var(--hover-bg); color: var(--hover-text); }
 
     /* Drag & drop overlay */
     .drop-active { position: relative; }
@@ -99,7 +159,7 @@
     }
   </style>
 </head>
-<body class="font-sans antialiased bg-[#0f0f19] text-[#f0f0f5] min-h-dvh leading-relaxed">
+<body class="font-sans antialiased min-h-dvh leading-relaxed" style="background:var(--bg);color:var(--text)">
 
   <!-- Ambient background -->
   <div class="fixed inset-0 -z-10 overflow-hidden">
@@ -110,36 +170,28 @@
   <div id="app" class="flex flex-col h-dvh max-w-screen">
 
     <!-- Header -->
-    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-5 z-[100] bg-[#0f0f19]/85 backdrop-blur-2xl border-b border-white/5">
+    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-5 z-[100] backdrop-blur-2xl border-b" style="background:var(--header-bg);border-color:var(--border)">
       <div class="flex items-center gap-3">
-        <button @click="$store.app.sidebarOpen = !$store.app.sidebarOpen" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 hover:bg-white/5 text-[#f0f0f5] cursor-pointer" title="Toggle Sidebar">☰</button>
+        <button onclick="toggleSidebar()" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 hover:bg-white/5 cursor-pointer" style="color:var(--text)" title="Toggle Sidebar">☰</button>
         <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 flex items-center justify-center text-sm font-bold text-white">W</div>
         <span class="font-semibold text-[0.95rem] max-sm:hidden">WebChat</span>
       </div>
 
       <!-- Model Selector -->
-      <div class="absolute left-1/2 -translate-x-1/2" @click.outside="$store.app.modelMenuOpen = false">
-        <button @click="$store.app.modelMenuOpen = !$store.app.modelMenuOpen"
-          class="inline-flex items-center justify-between gap-2 px-4 py-2 min-w-[160px] max-sm:min-w-[120px] rounded-lg bg-white/5 border border-white/10 text-sm font-medium text-[#f0f0f5] cursor-pointer hover:bg-white/10 transition-colors">
-          <span x-text="$store.app.currentModelLabel">GPT-5.5</span>
-          <span class="text-[10px] opacity-60">▼</span>
+      <div style="position:absolute;left:50%;transform:translateX(-50%);z-index:150">
+        <button onclick="toggleModelMenu()"
+          style="display:inline-flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 18px;min-width:160px;border-radius:8px;border:1px solid var(--border);background:var(--bubble-bg);color:var(--text);font-size:0.875rem;font-weight:500;cursor:pointer">
+          <span id="model-label">GPT-5.5</span>
+          <span style="font-size:10px;opacity:0.6">▼</span>
         </button>
-        <div x-cloak x-show="$store.app.modelMenuOpen" x-transition
-          class="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 min-w-[220px] rounded-xl bg-[#0f0f19]/70 backdrop-blur-lg border border-white/10 shadow-2xl p-1.5 z-[200]">
-          <template x-for="m in MODEL_OPTIONS" :key="m.model">
-            <button @click="selectModel(m.model); $store.app.modelMenuOpen = false"
-              :class="state.currentModel.model === m.model ? 'bg-white/10' : ''"
-              class="flex w-full justify-between px-3 py-2 rounded-md bg-transparent border-0 text-sm text-[#f0f0f5] cursor-pointer hover:bg-white/5 transition-colors">
-              <span class="font-medium" x-text="m.label"></span>
-              <span class="text-[0.7rem] text-[#6b6b82] ml-auto" x-text="m.provider"></span>
-            </button>
-          </template>
+        <div id="model-dropdown" class="hidden" style="position:absolute;top:100%;margin-top:6px;left:50%;transform:translateX(-50%);min-width:220px;border-radius:12px;background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);padding:6px;z-index:200;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
         </div>
       </div>
 
       <div class="flex items-center gap-2">
-        <button @click="clearChat()" class="px-4 py-2 rounded-lg bg-transparent border-0 text-[#f0f0f5] cursor-pointer hover:bg-white/5 text-lg" title="New Chat">➕</button>
-        <button @click="$store.app.settingsOpen = true" class="px-4 py-2 rounded-lg bg-transparent border-0 text-[#f0f0f5] cursor-pointer hover:bg-white/5 text-xl" title="Settings">⚙</button>
+        <button onclick="clearChat()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg" style="color:var(--text)" title="New Chat">➕</button>
+        <button onclick="toggleTheme()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg" style="color:var(--text)" title="Toggle theme" id="theme-btn">🌙</button>
+        <button onclick="openSettings()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-xl" style="color:var(--text)" title="Settings">⚙</button>
         <div id="auth-area"></div>
       </div>
     </header>
@@ -147,11 +199,11 @@
     <!-- Content -->
     <div class="flex flex-1 overflow-hidden pt-[60px]">
       <!-- Sidebar -->
-      <aside x-show="$store.app.sidebarOpen" x-transition:enter="transition-width duration-300" x-transition:leave="transition-width duration-300"
-        class="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0f0f19]/40 flex flex-col overflow-y-auto max-sm:fixed max-sm:top-[60px] max-sm:bottom-0 max-sm:left-0 max-sm:z-[200] max-sm:bg-[#0f0f19]/95 max-sm:backdrop-blur-xl max-sm:border-r max-sm:border-white/10"
-        :class="$store.app.sidebarOpen ? '' : '!w-0 !border-r-0'">
-        <div class="p-4 border-b border-white/5">
-          <button @click="clearChat()" class="w-full px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 text-white font-medium cursor-pointer border-0 hover:opacity-90 hover:-translate-y-px transition-all">+ New Chat</button>
+      <aside id="sidebar"
+        class="w-[260px] flex-shrink-0 border-r flex flex-col overflow-y-auto max-sm:fixed max-sm:top-[60px] max-sm:bottom-0 max-sm:left-0 max-sm:z-[200] max-sm:backdrop-blur-xl"
+        style="background:var(--glass-bg);border-color:var(--border)">
+        <div class="p-4 border-b" style="border-color:var(--border)">
+          <button onclick="clearChat()" class="w-full px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 text-white font-medium cursor-pointer border-0 hover:opacity-90 hover:-translate-y-px transition-all">+ New Chat</button>
         </div>
         <div id="session-list" class="flex-1 overflow-y-auto"></div>
       </aside>
@@ -162,8 +214,8 @@
         <div id="empty-state" class="flex-1 flex flex-col items-center justify-center gap-4 px-5 text-center">
           <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-400 flex items-center justify-center text-3xl shadow-lg">💬</div>
           <h1 class="text-2xl font-bold">WebChat Agent</h1>
-          <p class="text-[#a0a0b8] max-w-[400px]">Sign in with Google, add your API keys in Settings, and start chatting with any LLM — all through a single interface.</p>
-          <div class="flex gap-3 mt-2 text-xs text-[#6b6b82]"><span>📄 Supports PDF & images</span><span>🔑 Encrypted keys</span></div>
+          <p style="color:var(--text2)" class="max-w-[400px]">Sign in with Google, add your API keys in Settings, and start chatting with any LLM — all through a single interface.</p>
+          <div class="flex gap-3 mt-2 text-xs" style="color:var(--muted)"><span>📄 Supports PDF & images</span><span>🔑 Encrypted keys</span></div>
         </div>
 
         <!-- Chat container -->
@@ -173,18 +225,19 @@
         <div class="sticky bottom-0 max-w-chat w-full mx-auto px-4 pb-5 z-50">
           <div id="input-error" class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm mb-4 hidden"></div>
           <div id="file-preview" class="flex gap-2 flex-wrap px-3 py-2 rounded-t-xl bg-white/5 border border-white/10 border-b-0 hidden"></div>
-          <div class="flex items-end gap-2 px-4 py-2 rounded-2xl bg-[#0f0f19]/70 backdrop-blur-lg border border-white/10 shadow-2xl">
-            <button @click="$refs.fileInput.click()" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 text-[#f0f0f5] cursor-pointer hover:bg-white/5 flex-shrink-0" title="Attach files">+</button>
-            <input type="file" x-ref="fileInput" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden" onchange="handleFileSelect(event)">
+          <div class="flex items-end gap-2 px-4 py-2 rounded-2xl backdrop-blur-lg border shadow-2xl" style="background:var(--glass-bg);border-color:var(--glass-border);box-shadow:var(--glass-shadow)">
+            <button onclick="document.getElementById('file-input').click()" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 cursor-pointer hover:bg-white/5 flex-shrink-0" style="color:var(--text)" title="Attach files">+</button>
+            <input type="file" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden" onchange="handleFileSelect(event)">
             <textarea id="msg-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
-              class="flex-1 border-0 outline-none bg-transparent text-[#f0f0f5] font-sans text-[0.925rem] resize-none max-h-[160px] leading-relaxed py-1.5"
+              class="flex-1 border-0 outline-none bg-transparent font-sans text-[0.925rem] resize-none max-h-[160px] leading-relaxed py-1.5"
+              style="color:var(--text)"
               oninput="adjustHeight()" onkeydown="handleInputKeydown(event)"></textarea>
             <!-- Send button -->
-            <button x-show="!$store.app.isGenerating" id="send-btn" onclick="handleSend()" disabled
+            <button id="send-btn" onclick="handleSend()" disabled
               class="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-400 text-white cursor-pointer border-0 transition-all hover:opacity-90 hover:-translate-y-px flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0" title="Send">↑</button>
             <!-- Stop button -->
-            <button x-show="$store.app.isGenerating" id="stop-btn" onclick="stopGenerating()"
-              class="w-9 h-9 rounded-full flex items-center justify-center bg-red-500/15 border border-red-500/30 text-red-400 cursor-pointer hover:bg-red-500/25 flex-shrink-0 text-sm" title="Stop">■</button>
+            <button id="stop-btn" onclick="stopGenerating()"
+              class="hidden w-9 h-9 rounded-full flex items-center justify-center bg-red-500/15 border border-red-500/30 text-red-400 cursor-pointer hover:bg-red-500/25 flex-shrink-0 text-sm" title="Stop">■</button>
           </div>
         </div>
       </div>
@@ -192,13 +245,12 @@
   </div>
 
   <!-- Settings Modal -->
-  <div x-cloak x-show="$store.app.settingsOpen" x-transition @click.self="$store.app.settingsOpen = false"
-    class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur z-[1000]">
-    <div class="w-[90%] max-w-[440px] max-h-[80vh] overflow-y-auto p-6 rounded-2xl bg-[#0f0f19]/70 backdrop-blur-lg border border-white/10 shadow-2xl">
+  <div id="settings-modal" class="fixed inset-0 hidden flex items-center justify-center backdrop-blur z-[1000]" style="background:var(--modal-overlay)" onclick="if(event.target===this)closeSettingsModal()">
+    <div class="w-[90%] max-w-[440px] max-h-[80vh] overflow-y-auto p-6 rounded-2xl backdrop-blur-lg border glass-panel">
       <h2 class="text-xl font-semibold mb-5">API Keys</h2>
       <div id="settings-alert"></div>
       <div id="settings-form"></div>
-      <div class="mt-5 p-3 rounded-lg bg-white/5 text-xs text-[#6b6b82]">
+      <div class="mt-5 p-3 rounded-lg text-xs" style="background:var(--code-bg);color:var(--muted)">
         🔒 API keys are encrypted at rest using AES-256-GCM before being stored in the database. Keys are only decrypted in memory when making a chat request.
       </div>
     </div>
@@ -209,7 +261,8 @@
        Constants & State
        ══════════════════════════════════════════════════════════ */
 
-    const MODEL_OPTIONS = [
+    // var for window-level access (used by generated HTML onclick handlers)
+    var MODEL_OPTIONS = [
       { label: 'GPT-5.5',           provider: 'openai',    model: 'gpt-5.5' },
       { label: 'GPT-5.4 Mini',      provider: 'openai',    model: 'gpt-5.4-mini' },
       { label: 'Claude Opus 4.8',   provider: 'claude',    model: 'claude-opus-4-8' },
@@ -223,7 +276,7 @@
       { label: 'DeepSeek Reasoner', provider: 'deepseek',  model: 'deepseek-reasoner' },
     ];
 
-    const PROVIDERS = [
+    var PROVIDERS = [
       { id: 'openai',     label: 'OpenAI',     placeholder: 'sk-...' },
       { id: 'claude',     label: 'Claude',     placeholder: 'sk-ant-...' },
       { id: 'gemini',     label: 'Gemini',     placeholder: 'AIza...' },
@@ -231,7 +284,7 @@
       { id: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-...' },
     ];
 
-    const state = {
+    var state = {
       user: null, messages: [], currentModel: MODEL_OPTIONS[0],
       isGenerating: false, error: null, files: [],
       sessions: [], currentSessionId: null,
@@ -244,23 +297,20 @@
     const $ = (s) => document.querySelector(s);
 
     /* ══════════════════════════════════════════════════════════
-       Alpine Store — reactive UI state
+       UI State
        ══════════════════════════════════════════════════════════ */
 
-    document.addEventListener('alpine:init', () => {
-      Alpine.store('app', {
-        isGenerating: false,
-        sidebarOpen: false,
-        settingsOpen: false,
-        modelMenuOpen: false,
-        currentModelLabel: 'GPT-5.5',
-      });
-    });
-
-    // Sync state.isGenerating with Alpine store
     function syncGenerating(v) {
       state.isGenerating = v;
-      Alpine.store('app').isGenerating = v;
+      var sendBtn = document.getElementById('send-btn');
+      var stopBtn = document.getElementById('stop-btn');
+      if (v) {
+        if (sendBtn) sendBtn.classList.add('hidden');
+        if (stopBtn) stopBtn.classList.remove('hidden');
+      } else {
+        if (sendBtn) sendBtn.classList.remove('hidden');
+        if (stopBtn) stopBtn.classList.add('hidden');
+      }
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -300,7 +350,8 @@
       const existing = el.querySelector('.msg-usage');
       if (existing) existing.remove();
       const badge = document.createElement('div');
-      badge.className = 'msg-usage ml-3 mt-1 text-[0.7rem] text-[#6b6b82] opacity-70';
+      badge.className = 'msg-usage ml-3 mt-1 text-[0.7rem] opacity-70';
+      badge.style.color = 'var(--muted)';
       badge.textContent = `🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens`;
       el.appendChild(badge);
     }
@@ -351,8 +402,8 @@
       } else {
         area.innerHTML = `<div class="flex items-center gap-2">
           ${state.user.image ? `<img src="${state.user.image}" alt="" class="w-7 h-7 rounded-full">` : ''}
-          ${state.user.name ? `<span class="max-sm:hidden text-sm font-medium">${escHtml(state.user.name)}</span>` : ''}
-          <button onclick="logout()" class="max-sm:hidden px-3 py-2 rounded-lg bg-transparent border-0 text-[#f0f0f5] cursor-pointer hover:bg-white/5 text-sm">Logout</button>
+          ${state.user.name ? `<span class="max-sm:hidden text-sm font-medium" style="color:var(--text)">${escHtml(state.user.name)}</span>` : ''}
+          <button onclick="logout()" class="max-sm:hidden px-3 py-2 rounded-lg bg-transparent border-0 cursor-pointer text-sm" style="color:var(--text)">Logout</button>
         </div>`;
       }
     }
@@ -371,10 +422,51 @@
        Model Selector
        ══════════════════════════════════════════════════════════ */
 
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('!w-0');
+      document.getElementById('sidebar').classList.toggle('!border-r-0');
+    }
+
+    function toggleModelMenu() {
+      var dd = document.getElementById('model-dropdown');
+      if (!dd) { console.error('model-dropdown not found'); return; }
+      var isHidden = dd.classList.contains('hidden');
+      if (isHidden) {
+        dd.classList.remove('hidden');
+        if (dd.children.length === 0) {
+          MODEL_OPTIONS.forEach(function(m) {
+            var btn = document.createElement('button');
+            btn.className = 'flex w-full justify-between px-3 py-2 rounded-md bg-transparent border-0 text-sm cursor-pointer';
+            btn.style.color = 'var(--text)';
+            btn.onmouseover = function() { this.style.background = 'var(--hover-bg)'; };
+            btn.onmouseout = function() { this.style.background = 'transparent'; };
+            btn.onclick = function(e) { e.stopPropagation(); selectModel(m.model); };
+            var label = document.createElement('span');
+            label.className = 'font-medium';
+            label.textContent = m.label;
+            var provider = document.createElement('span');
+            provider.className = 'text-[0.7rem] ml-auto';
+            provider.style.color = 'var(--muted)';
+            provider.textContent = m.provider;
+            btn.appendChild(label);
+            btn.appendChild(provider);
+            dd.appendChild(btn);
+          });
+        }
+      } else {
+        dd.classList.add('hidden');
+      }
+    }
+
+    function closeModelMenu() {
+      var dd = document.getElementById('model-dropdown');
+      if (dd) dd.classList.add('hidden');
+    }
+
     function selectModel(modelId) {
-      state.currentModel = MODEL_OPTIONS.find(m => m.model === modelId);
-      Alpine.store('app').currentModelLabel = state.currentModel.label;
-      Alpine.store('app').modelMenuOpen = false;
+      state.currentModel = MODEL_OPTIONS.find(function(m) { return m.model === modelId; });
+      document.getElementById('model-label').textContent = state.currentModel.label;
+      closeModelMenu();
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -394,10 +486,13 @@
         const isUser = msg.role === 'user';
         const align = isUser ? 'items-end' : 'items-start';
         const label = isUser ? 'You' : 'Assistant';
-        const labelColor = isUser ? 'text-[#a29bfe] mr-3' : 'text-[#6b6b82] ml-3';
+        const labelColor = isUser
+          ? 'mr-3'
+          : 'ml-3';
+        const labelStyle = isUser ? 'color:#a29bfe' : 'color:var(--muted)';
         const bubble = isUser
           ? 'bg-gradient-to-br from-indigo-600 to-purple-400 text-white rounded-[18px_18px_4px_18px] px-[18px] py-[10px]'
-          : 'bg-white/5 backdrop-blur-lg border border-white/10 rounded-[18px_18px_18px_4px] px-5 py-[14px] shadow-2xl';
+          : 'rounded-[18px_18px_18px_4px] px-5 py-[14px]';
         const filesHtml = msg.files?.length
           ? `<div class="flex gap-1.5 flex-wrap mb-2 opacity-80 text-xs">${msg.files.map(f => `<span class="px-2 py-0.5 bg-white/10 rounded">📎 ${escHtml(f.name)}</span>`).join('')}</div>`
           : '';
@@ -406,12 +501,12 @@
           ? (isUser ? escHtml(cleanContent) : renderMarkdown(cleanContent))
           : (isUser ? '' : '<span class="opacity-40">…</span>');
         const usageHtml = msg.usage && msg.usage.input > 0
-          ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] text-[#6b6b82] opacity-70">🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens</div>`
+          ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] opacity-70" style="color:var(--muted)">🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens</div>`
           : '';
 
         return `<div class="flex flex-col mb-4 animate-slide-up ${align}" id="${msg.id}">
-          <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 ${labelColor}">${label}</div>
-          <div class="max-w-[75%] max-sm:max-w-[88%] text-[0.925rem] break-words ${bubble}">
+          <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 ${labelColor}" style="${labelStyle}">${label}</div>
+          <div class="max-w-[75%] max-sm:max-w-[88%] text-[0.925rem] break-words ${bubble} ${isUser ? '' : 'bubble-assistant'}">
             ${filesHtml}
             <div class="${isUser ? '' : 'md-content'}" id="content-${msg.id}">${content}</div>
           </div>
@@ -423,13 +518,13 @@
       if (state.isGenerating) {
         container.insertAdjacentHTML('beforeend', `
           <div class="flex flex-col items-start mb-4 animate-fade-in" id="typing-indicator">
-            <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 text-[#6b6b82] ml-3">ASSISTANT</div>
-            <div class="inline-flex items-center gap-2 px-5 py-[14px] bg-white/5 backdrop-blur-lg border border-white/10 rounded-[18px_18px_18px_4px] opacity-85 shadow-2xl">
-              <span class="text-[0.85em] font-semibold">🤔 Thinking</span>
+            <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 ml-3" style="color:var(--muted)">ASSISTANT</div>
+            <div class="inline-flex items-center gap-2 px-5 py-[14px] backdrop-blur-lg rounded-[18px_18px_18px_4px] opacity-85 bubble-assistant">
+              <span class="text-[0.85em] font-semibold" style="color:var(--text)">🤔 Thinking</span>
               <span class="inline-flex items-center gap-1">
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#6b6b82] animate-pulse-dot" style="animation-delay:0s"></span>
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#6b6b82] animate-pulse-dot" style="animation-delay:0.2s"></span>
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#6b6b82] animate-pulse-dot" style="animation-delay:0.4s"></span>
+                <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0s"></span>
+                <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0.2s"></span>
+                <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0.4s"></span>
               </span>
             </div>
           </div>`);
@@ -437,7 +532,7 @@
 
       // Error banner
       if (state.error) {
-        container.insertAdjacentHTML('beforeend', `<div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm mb-4 animate-fade-in">⚠️ ${escHtml(state.error)}</div>`);
+        container.insertAdjacentHTML('beforeend', `<div class="px-4 py-3 rounded-xl border text-sm mb-4 animate-fade-in" style="background:var(--error-bg);border-color:var(--error-border);color:#ef4444">⚠️ ${escHtml(state.error)}</div>`);
       }
 
       container.scrollTop = container.scrollHeight;
@@ -596,13 +691,13 @@
     function renderSessions() {
       const list = $('#session-list');
       if (state.sessions.length === 0) {
-        list.innerHTML = '<div class="p-4 text-[#6b6b82] text-sm text-center">No recent chats</div>';
+        list.innerHTML = '<div class="p-4 text-sm text-center" style="color:var(--muted)">No recent chats</div>';
         return;
       }
       list.innerHTML = state.sessions.map(s => `
-        <div class="flex items-center justify-between px-4 py-3 border-b border-white/5 cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis text-sm text-[#a0a0b8] hover:bg-white/5 hover:text-[#f0f0f5] transition-colors ${s.id === state.currentSessionId ? 'bg-indigo-600/15 !text-white border-l-[3px] border-l-indigo-600' : ''}" onclick="loadSession('${s.id}')">
+        <div class="session-item flex items-center justify-between px-4 py-3 border-b cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis text-sm transition-colors ${s.id === state.currentSessionId ? 'bg-indigo-600/15 !text-white border-l-[3px] border-l-indigo-600' : ''}" style="color:var(--text2)" onclick="loadSession('${s.id}')">
           <div class="flex-1 overflow-hidden text-ellipsis">${escHtml(s.title || 'New Chat')}</div>
-          <button class="session-del p-1 bg-transparent border-0 text-[#6b6b82] cursor-pointer" onclick="deleteSession('${s.id}', event)" title="Delete Chat">✕</button>
+          <button class="session-del p-1 bg-transparent border-0 cursor-pointer" style="color:var(--muted)" onclick="deleteSession('${s.id}', event)" title="Delete Chat">✕</button>
         </div>`).join('');
     }
 
@@ -613,7 +708,7 @@
       const session = state.sessions.find(s => s.id === id);
       if (session?.model_id) {
         const model = MODEL_OPTIONS.find(m => m.model === session.model_id);
-        if (model) { state.currentModel = model; Alpine.store('app').currentModelLabel = model.label; }
+        if (model) { state.currentModel = model; document.getElementById('model-label').textContent = model.label; }
       }
       renderSessions();
       try {
@@ -731,7 +826,7 @@
       el.innerHTML = state.files.map((f, i) => `
         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white/10 rounded text-xs">
           📎 ${escHtml(f.name)}
-          <button class="w-4 h-4 p-0 text-xs rounded-full ml-0.5 bg-transparent border-0 text-[#6b6b82] cursor-pointer hover:text-red-400" onclick="removeFile(${i})">✕</button>
+          <button class="w-4 h-4 p-0 text-xs rounded-full ml-0.5 bg-transparent border-0 cursor-pointer hover:text-red-400" style="color:var(--muted)" onclick="removeFile(${i})">✕</button>
         </span>`).join('');
     }
 
@@ -792,8 +887,11 @@
 
     let savedKeys = [];
 
+    function openSettingsModal() { $('#settings-modal').classList.remove('hidden'); }
+    function closeSettingsModal() { $('#settings-modal').classList.add('hidden'); }
+
     async function openSettings() {
-      Alpine.store('app').settingsOpen = true;
+      openSettingsModal();
       $('#settings-alert').innerHTML = '';
       if (state.user) {
         try { const r = await fetch('/api/keys'); const d = await r.json(); savedKeys = d.keys || []; } catch { savedKeys = []; }
@@ -809,10 +907,10 @@
         return `<div class="mb-4">
           <label class="block text-sm font-semibold mb-1.5 capitalize">${p.label}</label>
           <div class="flex gap-2">
-            <input class="flex-1 px-3 py-2.5 bg-[#1a1a2e] border border-white/10 rounded-lg text-[#f0f0f5] font-sans text-sm outline-none focus:border-[#a29bfe] transition-colors" type="password" id="key-${p.id}" placeholder="${saved ? saved.keyMasked : p.placeholder}">
+            <input class="flex-1 px-3 py-2.5 border rounded-lg font-sans text-sm outline-none focus:border-[#a29bfe] transition-colors" style="background:var(--input-bg);border-color:var(--border);color:var(--text)" type="password" id="key-${p.id}" placeholder="${saved ? saved.keyMasked : p.placeholder}">
             <button class="px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 text-white font-medium cursor-pointer border-0 hover:opacity-90 flex-shrink-0" onclick="saveKey('${p.id}')">Save</button>
           </div>
-          ${saved ? `<div class="flex items-center justify-between mt-1 text-xs text-[#6b6b82]"><span>✓ Key saved</span><button class="text-red-400 cursor-pointer bg-transparent border-0 p-0 font-sans hover:underline" onclick="deleteKey('${saved.id}')">Remove</button></div>` : ''}
+          ${saved ? `<div class="flex items-center justify-between mt-1 text-xs" style="color:var(--muted)"><span>✓ Key saved</span><button class="text-red-400 cursor-pointer bg-transparent border-0 p-0 font-sans hover:underline" onclick="deleteKey('${saved.id}')">Remove</button></div>` : ''}
         </div>`;
       }).join('');
     }
@@ -845,14 +943,64 @@
     }
 
     /* ══════════════════════════════════════════════════════════
+       Theme Toggle
+       ══════════════════════════════════════════════════════════ */
+
+    function initTheme() {
+      const stored = localStorage.getItem('theme');
+      if (stored === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else if (stored === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        // System preference
+        if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      }
+      updateThemeIcon();
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      updateThemeIcon();
+    }
+
+    function updateThemeIcon() {
+      const btn = document.getElementById('theme-btn');
+      if (!btn) return;
+      const isDark = document.documentElement.classList.contains('dark');
+      btn.textContent = isDark ? '☀️' : '🌙';
+    }
+
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('theme')) {
+        if (e.matches) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        updateThemeIcon();
+      }
+    });
+
+    /* ══════════════════════════════════════════════════════════
        Init
        ══════════════════════════════════════════════════════════ */
 
+    initTheme();
     checkAuth(); renderMessages(); initDragDrop();
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && e.target.id?.startsWith('key-')) saveKey(e.target.id.replace('key-', ''));
-      if (e.key === 'Escape') { Alpine.store('app').settingsOpen = false; Alpine.store('app').modelMenuOpen = false; }
+      if (e.key === 'Escape') { closeSettingsModal(); closeModelMenu(); }
     });
   </script>
 </body>
