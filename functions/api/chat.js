@@ -1,10 +1,14 @@
 import { decrypt } from './_shared.js';
 
 /**
- * POST /api/chat → Proxy a streaming LLM request.
+ * POST /api/chat → Proxy a streaming LLM request via SSE.
  *
  * Fetches the user's encrypted API key from D1, decrypts it,
  * and streams the response from the selected LLM provider.
+ *
+ * Response format: Server-Sent Events (SSE)
+ *   event: text   → data: "chunk of text"
+ *   event: usage  → data: {"input":123,"output":456}
  *
  * Body: { provider, model, messages: [{role, content}] }
  */
@@ -57,21 +61,31 @@ export async function onRequestPost(context) {
     );
   }
 
-  // Stream the LLM response
+  // Stream the LLM response as SSE
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
       let assistantContent = '';
+
+      const sendEvent = (event, data) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
       try {
         const gen = streamChat(provider, apiKey, model, messages);
         for await (const chunk of gen) {
-          assistantContent += chunk;
-          controller.enqueue(encoder.encode(chunk));
+          if (chunk.text) {
+            assistantContent += chunk.text;
+            sendEvent('text', chunk.text);
+          }
+          if (chunk.usage) {
+            sendEvent('usage', chunk.usage);
+          }
         }
       } catch (err) {
         const errMsg = `\n\n⚠️ **Error:** ${err.message || 'Unknown error'}`;
         assistantContent += errMsg;
-        controller.enqueue(encoder.encode(errMsg));
+        try { sendEvent('text', errMsg); } catch { /* client may have disconnected */ }
       } finally {
         if (sessionId && assistantContent) {
           context.waitUntil(
@@ -86,15 +100,16 @@ export async function onRequestPost(context) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
     },
   });
 }
 
 /* ══════════════════════════════════════════════════════════════
    LLM Streaming — direct fetch + SSE parsing per provider.
-   Same logic as the original llm.ts, consolidated here.
+   Each generator yields { text: string } and/or { usage: object }.
    ══════════════════════════════════════════════════════════════ */
 
 /**
@@ -104,8 +119,7 @@ async function fetchWithTimeout(url, options, timeoutMs = 30000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
+    return await fetch(url, { ...options, signal: controller.signal });
   } catch (err) {
     if (err.name === 'AbortError') {
       throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
@@ -128,10 +142,10 @@ async function* streamChat(provider, apiKey, model, messages) {
       yield* streamGemini(apiKey, model, messages);
       break;
     case 'deepseek':
-      yield* streamDeepSeek(apiKey, model, messages);
+      yield* streamOpenAICompatible(apiKey, model, messages, 'https://api.deepseek.com/v1/chat/completions', 'DeepSeek');
       break;
     case 'openrouter':
-      yield* streamOpenRouter(apiKey, model, messages);
+      yield* streamOpenAICompatible(apiKey, model, messages, 'https://openrouter.ai/api/v1/chat/completions', 'OpenRouter');
       break;
     default:
       throw new Error(`Unsupported provider: ${provider}`);
@@ -165,9 +179,10 @@ async function* streamOpenAI(apiKey, model, messages) {
       usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
       return null;
     }
-    return extractor(json);
+    const text = extractor(json);
+    return text ? { text } : null;
   });
-  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
+  if (usage) yield { usage };
 }
 
 /* ── Anthropic ─────────────────────────────────────────────── */
@@ -219,22 +234,22 @@ async function* streamAnthropic(apiKey, model, messages) {
         let chunk = '';
         if (!thinking) { thinking = true; chunk += '<think>\n'; }
         chunk += json.delta.thinking;
-        return chunk;
+        return { text: chunk };
       }
       if (json.delta?.text) {
         let chunk = '';
         if (thinking) { thinking = false; chunk += '\n</think>\n\n'; }
         chunk += json.delta.text;
-        return chunk;
+        return { text: chunk };
       }
     }
     if (json.type === 'content_block_start' && json.content_block?.type === 'thinking') {
       thinking = true;
-      return '<think>\n';
+      return { text: '<think>\n' };
     }
     return null;
   });
-  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
+  if (usage) yield { usage };
 }
 
 /* ── Google Gemini ─────────────────────────────────────────── */
@@ -262,14 +277,14 @@ async function* streamGemini(apiKey, model, messages) {
   let thinking = false;
   let usage = null;
   yield* parseSSE(res.body, (json) => {
-    // Capture usage metadata
+    // Capture usage metadata — don't return early, fall through to check for text
     if (json.usageMetadata) {
       usage = {
         input: json.usageMetadata.promptTokenCount || 0,
         output: json.usageMetadata.candidatesTokenCount || 0,
       };
-      return null;
     }
+
     const parts = json.candidates?.[0]?.content?.parts;
     if (!parts?.length) return null;
 
@@ -278,17 +293,50 @@ async function* streamGemini(apiKey, model, messages) {
       let chunk = '';
       if (!thinking) { thinking = true; chunk += '<think>\n'; }
       chunk += part.thought;
-      return chunk;
+      return { text: chunk };
     }
     if (part.text) {
       let chunk = '';
       if (thinking) { thinking = false; chunk += '\n</think>\n\n'; }
       chunk += part.text;
-      return chunk;
+      return { text: chunk };
     }
     return null;
   });
-  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
+  if (usage) yield { usage };
+}
+
+/* ── OpenAI-Compatible (DeepSeek, OpenRouter) ──────────────── */
+
+async function* streamOpenAICompatible(apiKey, model, messages, baseUrl, providerName) {
+  const res = await fetchWithTimeout(baseUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model, messages, stream: true,
+      stream_options: { include_usage: true },
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${providerName} API error ${res.status}: ${text}`);
+  }
+
+  const extractor = makeReasoningExtractor();
+  let usage = null;
+  yield* parseSSE(res.body, (json) => {
+    if (json.usage) {
+      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
+      return null;
+    }
+    const text = extractor(json);
+    return text ? { text } : null;
+  });
+  if (usage) yield { usage };
 }
 
 /* ── Helpers ────────────────────────────────────────────────── */
@@ -300,8 +348,6 @@ async function* streamGemini(apiKey, model, messages) {
 function supportsThinking(model) {
   return /^claude-(opus|sonnet|haiku)/.test(model);
 }
-
-/* ── Reasoning extractor helper ─────────────────────────────── */
 
 /**
  * Creates a stateful extractor that wraps reasoning_content / reasoning
@@ -338,70 +384,6 @@ function makeReasoningExtractor() {
 
     return chunk || null;
   };
-}
-
-/* ── DeepSeek (OpenAI-compatible) ──────────────────────────── */
-
-async function* streamDeepSeek(apiKey, model, messages) {
-  const res = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model, messages, stream: true,
-      stream_options: { include_usage: true },
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`DeepSeek API error ${res.status}: ${text}`);
-  }
-
-  const extractor = makeReasoningExtractor();
-  let usage = null;
-  yield* parseSSE(res.body, (json) => {
-    if (json.usage) {
-      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
-      return null;
-    }
-    return extractor(json);
-  });
-  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
-}
-
-/* ── OpenRouter (OpenAI-compatible) ────────────────────────── */
-
-async function* streamOpenRouter(apiKey, model, messages) {
-  const res = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model, messages, stream: true,
-      stream_options: { include_usage: true },
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OpenRouter API error ${res.status}: ${text}`);
-  }
-
-  const extractor = makeReasoningExtractor();
-  let usage = null;
-  yield* parseSSE(res.body, (json) => {
-    if (json.usage) {
-      usage = { input: json.usage.prompt_tokens, output: json.usage.completion_tokens };
-      return null;
-    }
-    return extractor(json);
-  });
-  if (usage) yield `<|usage:${JSON.stringify(usage)}|>`;
 }
 
 /* ── Shared SSE parser ─────────────────────────────────────── */

@@ -4,3 +4,6 @@ node_modules/
 .env
 .wrangler/
 .dev.vars
+temp*.js
+test_*.js
+scratch.js

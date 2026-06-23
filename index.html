@@ -148,6 +148,11 @@
     .session-item { border-color: var(--border); }
     .session-item:hover { background: var(--hover-bg); color: var(--hover-text); }
 
+    /* Sidebar transition */
+    #sidebar { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), margin-left 0.25s cubic-bezier(0.4,0,0.2,1); }
+    #sidebar.sidebar-hidden { margin-left: -260px; }
+    @media (max-width: 639px) { #sidebar.sidebar-hidden { margin-left: 0; transform: translateX(-100%); } }
+
     /* Drag & drop overlay */
     .drop-active { position: relative; }
     .drop-active::after {
@@ -225,7 +230,7 @@
         <div class="sticky bottom-0 max-w-chat w-full mx-auto px-4 pb-5 z-50">
           <div id="input-error" class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm mb-4 hidden"></div>
           <div id="file-preview" class="flex gap-2 flex-wrap px-3 py-2 rounded-t-xl bg-white/5 border border-white/10 border-b-0 hidden"></div>
-          <div class="flex items-end gap-2 px-4 py-2 rounded-2xl backdrop-blur-lg border shadow-2xl" style="background:var(--glass-bg);border-color:var(--glass-border);box-shadow:var(--glass-shadow)">
+          <div id="input-area" class="flex items-end gap-2 px-4 py-2 rounded-2xl backdrop-blur-lg border shadow-2xl" style="background:var(--glass-bg);border-color:var(--glass-border);box-shadow:var(--glass-shadow)">
             <button onclick="document.getElementById('file-input').click()" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 cursor-pointer hover:bg-white/5 flex-shrink-0" style="color:var(--text)" title="Attach files">+</button>
             <input type="file" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden" onchange="handleFileSelect(event)">
             <textarea id="msg-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
@@ -283,6 +288,20 @@
       { id: 'deepseek',   label: 'DeepSeek',   placeholder: 'sk-...' },
       { id: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-...' },
     ];
+
+    var TOKEN_PRICING = { // USD per 1M tokens (update as pricing changes)
+      'gpt-5.5':                { input: 2.00,  output: 8.00 },
+      'gpt-5.4-mini':           { input: 0.40,  output: 1.60 },
+      'claude-opus-4-8':        { input: 15.00, output: 75.00 },
+      'claude-sonnet-4-6':      { input: 3.00,  output: 15.00 },
+      'claude-haiku-4-5':       { input: 0.80,  output: 4.00 },
+      'gemini-3.5-flash':       { input: 0.15,  output: 0.60 },
+      'gemini-3.1-pro-preview': { input: 1.25,  output: 5.00 },
+      'gemini-2.5-flash':       { input: 0.15,  output: 0.60 },
+      'deepseek-v4-pro':        { input: 0.50,  output: 2.00 },
+      'deepseek-v4-flash':      { input: 0.10,  output: 0.40 },
+      'deepseek-reasoner':      { input: 0.55,  output: 2.19 },
+    };
 
     var state = {
       user: null, messages: [], currentModel: MODEL_OPTIONS[0],
@@ -344,6 +363,17 @@
       return msg;
     }
 
+    function formatUsage(usage) {
+      const total = (usage.input || 0) + (usage.output || 0);
+      const pricing = TOKEN_PRICING[state.currentModel.model];
+      let costStr = '';
+      if (pricing) {
+        const cost = (usage.input * pricing.input + (usage.output || 0) * pricing.output) / 1_000_000;
+        costStr = ` · $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}`;
+      }
+      return `🪙 ${usage.input}+${usage.output || 0} = ${total} tokens${costStr}`;
+    }
+
     function injectUsageBadge(msg) {
       const el = document.getElementById(msg.id);
       if (!el || !msg.usage) return;
@@ -352,7 +382,7 @@
       const badge = document.createElement('div');
       badge.className = 'msg-usage ml-3 mt-1 text-[0.7rem] opacity-70';
       badge.style.color = 'var(--muted)';
-      badge.textContent = `🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens`;
+      badge.textContent = formatUsage(msg.usage);
       el.appendChild(badge);
     }
 
@@ -423,8 +453,7 @@
        ══════════════════════════════════════════════════════════ */
 
     function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('!w-0');
-      document.getElementById('sidebar').classList.toggle('!border-r-0');
+      document.getElementById('sidebar').classList.toggle('sidebar-hidden');
     }
 
     function toggleModelMenu() {
@@ -432,27 +461,36 @@
       if (!dd) { console.error('model-dropdown not found'); return; }
       var isHidden = dd.classList.contains('hidden');
       if (isHidden) {
+        dd.innerHTML = '';
+        MODEL_OPTIONS.forEach(function(m) {
+          var isSelected = m.model === state.currentModel.model;
+          var btn = document.createElement('button');
+          btn.className = 'flex w-full items-center px-3 py-2 rounded-md border-0 text-sm cursor-pointer';
+          btn.style.color = 'var(--text)';
+          btn.style.background = isSelected ? 'var(--accent-light)' : 'transparent';
+          btn.onmouseover = function() { if (!isSelected) this.style.background = 'var(--hover-bg)'; };
+          btn.onmouseout = function() { this.style.background = isSelected ? 'var(--accent-light)' : 'transparent'; };
+          btn.onclick = function(e) { e.stopPropagation(); selectModel(m.model); };
+          var label = document.createElement('span');
+          label.className = 'font-medium';
+          label.textContent = m.label;
+          var provider = document.createElement('span');
+          provider.className = 'text-[0.7rem] ml-auto';
+          provider.style.color = 'var(--muted)';
+          provider.textContent = m.provider;
+          if (isSelected) {
+            var check = document.createElement('span');
+            check.textContent = ' ✓';
+            check.style.color = 'var(--accent-text)';
+            check.style.fontSize = '0.8rem';
+            check.style.marginLeft = '6px';
+            provider.appendChild(check);
+          }
+          btn.appendChild(label);
+          btn.appendChild(provider);
+          dd.appendChild(btn);
+        });
         dd.classList.remove('hidden');
-        if (dd.children.length === 0) {
-          MODEL_OPTIONS.forEach(function(m) {
-            var btn = document.createElement('button');
-            btn.className = 'flex w-full justify-between px-3 py-2 rounded-md bg-transparent border-0 text-sm cursor-pointer';
-            btn.style.color = 'var(--text)';
-            btn.onmouseover = function() { this.style.background = 'var(--hover-bg)'; };
-            btn.onmouseout = function() { this.style.background = 'transparent'; };
-            btn.onclick = function(e) { e.stopPropagation(); selectModel(m.model); };
-            var label = document.createElement('span');
-            label.className = 'font-medium';
-            label.textContent = m.label;
-            var provider = document.createElement('span');
-            provider.className = 'text-[0.7rem] ml-auto';
-            provider.style.color = 'var(--muted)';
-            provider.textContent = m.provider;
-            btn.appendChild(label);
-            btn.appendChild(provider);
-            dd.appendChild(btn);
-          });
-        }
       } else {
         dd.classList.add('hidden');
       }
@@ -501,7 +539,7 @@
           ? (isUser ? escHtml(cleanContent) : renderMarkdown(cleanContent))
           : (isUser ? '' : '<span class="opacity-40">…</span>');
         const usageHtml = msg.usage && msg.usage.input > 0
-          ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] opacity-70" style="color:var(--muted)">🪙 ${msg.usage.input}+${msg.usage.output || 0} = ${(msg.usage.input + (msg.usage.output || 0))} tokens</div>`
+          ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] opacity-70" style="color:var(--muted)">${formatUsage(msg.usage)}</div>`
           : '';
 
         return `<div class="flex flex-col mb-4 animate-slide-up ${align}" id="${msg.id}">
@@ -535,7 +573,7 @@
         container.insertAdjacentHTML('beforeend', `<div class="px-4 py-3 rounded-xl border text-sm mb-4 animate-fade-in" style="background:var(--error-bg);border-color:var(--error-border);color:#ef4444">⚠️ ${escHtml(state.error)}</div>`);
       }
 
-      container.scrollTop = container.scrollHeight;
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -604,12 +642,13 @@
 
       try {
         await ensureSession();
+        const userMsg = state.messages[state.messages.length - 2]; // the user message we just pushed
         const res = await fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             provider: state.currentModel.provider, model: state.currentModel.model,
             messages: state.messages.filter(m => m.content && m !== assistantMsg)
-              .map(m => ({ role: m.role, content: m.role === 'user' ? userContent : m.content })),
+              .map(m => ({ role: m.role, content: m === userMsg ? userContent : m.content })),
             sessionId: state.currentSessionId,
           }),
         });
@@ -619,40 +658,51 @@
         activeStream = { reader, assistantMsg };
         const decoder = new TextDecoder();
         assistantMsg._displayLen = 0; assistantMsg._stopDisplay = false;
+        let sseBuffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          let text = decoder.decode(value, { stream: true });
-          const usageMatch = text.match(/<\|usage:([^|]+)\|>/);
-          if (usageMatch) {
-            try { assistantMsg.usage = JSON.parse(usageMatch[1]); } catch {}
-            text = text.replace(/<\|usage:[^|]+\|>/, '');
-            injectUsageBadge(assistantMsg);
-            if (!text.trim()) continue;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const sseEvents = sseBuffer.split('\n\n');
+          sseBuffer = sseEvents.pop();
+          for (const eventStr of sseEvents) {
+            if (!eventStr.trim()) continue;
+            const lines = eventStr.split('\n');
+            let eventType = '', eventData = '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+              if (line.startsWith('data: ')) eventData = line.slice(6);
+            }
+            if (eventType === 'text' && eventData) {
+              assistantMsg.content += JSON.parse(eventData);
+              // Remove typing indicator on first content
+              const typingEl = document.getElementById('typing-indicator');
+              if (typingEl) typingEl.remove();
+              startProgressiveDisplay(assistantMsg);
+            } else if (eventType === 'usage' && eventData) {
+              assistantMsg.usage = JSON.parse(eventData);
+              injectUsageBadge(assistantMsg);
+            }
           }
-          assistantMsg.content += text;
-          if (state.isGenerating) {
-            syncGenerating(false);
-            const typingEl = document.getElementById('typing-indicator');
-            if (typingEl) typingEl.remove();
-          }
-          startProgressiveDisplay(assistantMsg);
         }
       } catch (err) {
         if (err.name === 'AbortError') {
           if (!assistantMsg.content) assistantMsg.content = '[Generation stopped]';
-        } else { state.error = err.message || 'Failed to send message'; }
+        } else if (!state.error) { state.error = err.message || 'Failed to send message'; }
         assistantMsg._stopDisplay = true;
         if (assistantMsg._displayTimer) { cancelAnimationFrame(assistantMsg._displayTimer); assistantMsg._displayTimer = null; }
       } finally {
         activeStream = null; syncGenerating(false);
-        if (assistantMsg.usage && !state.error) {
-          injectUsageBadge(assistantMsg);
+        // Stop progressive display and do final render
+        assistantMsg._stopDisplay = true;
+        if (assistantMsg._displayTimer) { cancelAnimationFrame(assistantMsg._displayTimer); assistantMsg._displayTimer = null; }
+        if (assistantMsg.content && !state.error) {
           const cd = document.getElementById(`content-${assistantMsg.id}`);
           if (cd) cd.innerHTML = renderMarkdown(assistantMsg.content);
+          if (assistantMsg.usage) injectUsageBadge(assistantMsg);
         }
-        if (state.error || assistantMsg._stopDisplay) renderMessages();
+        if (state.error || !assistantMsg.content) renderMessages();
         input.focus();
         if (isFirstMessage && state.currentSessionId && assistantMsg.content && !state.error) {
           generateSessionTitle(text || 'chat with files');
@@ -715,7 +765,7 @@
         const res = await fetch(`/api/sessions/${id}`);
         const data = await res.json();
         if (data.messages) {
-          state.messages = data.messages.map(m => parseMessage({ role: m.role, content: m.content }));
+          state.messages = data.messages.map(m => parseMessage({ id: nextId(), role: m.role, content: m.content }));
           renderMessages();
         }
       } catch (err) { console.error('Failed to load session:', err); }
@@ -758,8 +808,23 @@
           }),
         });
         if (!res.ok) return;
-        const reader = res.body.getReader(); const decoder = new TextDecoder(); let title = '';
-        while (true) { const { done, value } = await reader.read(); if (done) break; title += decoder.decode(value, { stream: true }); }
+        const reader = res.body.getReader(); const decoder = new TextDecoder();
+        let title = '', sseBuffer = '';
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const parts = sseBuffer.split('\n\n'); sseBuffer = parts.pop();
+          for (const part of parts) {
+            if (!part.trim()) continue;
+            const lines = part.split('\n');
+            let eventType = '', data = '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+              if (line.startsWith('data: ')) data = line.slice(6);
+            }
+            if (eventType === 'text' && data) title += JSON.parse(data);
+          }
+        }
         title = title.trim().replace(/^["']|["']$/g, '').slice(0, 60);
         if (!title) return;
         await fetch(`/api/sessions/${state.currentSessionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
@@ -850,7 +915,9 @@
     function resizeImage(file, maxDim, quality) {
       return new Promise((resolve, reject) => {
         const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
         img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
           let { width, height } = img;
           if (width > maxDim || height > maxDim) {
             const ratio = Math.min(maxDim / width, maxDim / height);
@@ -861,8 +928,8 @@
           canvas.getContext('2d').drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', quality));
         };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image')); };
+        img.src = objectUrl;
       });
     }
 
@@ -997,6 +1064,15 @@
 
     initTheme();
     checkAuth(); renderMessages(); initDragDrop();
+
+    // Close model dropdown on outside click
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('model-dropdown');
+      if (dd && !dd.classList.contains('hidden')) {
+        const wrapper = dd.parentElement;
+        if (!wrapper.contains(e.target)) closeModelMenu();
+      }
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && e.target.id?.startsWith('key-')) saveKey(e.target.id.replace('key-', ''));
