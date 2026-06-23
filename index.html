@@ -155,7 +155,10 @@
       will-change: transform;
     }
     #sidebar.sidebar-hidden { margin-left: -260px; }
-    @media (max-width: 639px) { #sidebar.sidebar-hidden { margin-left: 0; transform: translate3d(-100%, 0, 0); } }
+    @media (max-width: 639px) { 
+      #sidebar { margin-left: 0; transform: translate3d(0, 0, 0); background: var(--bg) !important; }
+      #sidebar.sidebar-hidden { transform: translate3d(-100%, 0, 0); } 
+    }
 
     /* Drag & drop overlay */
     .drop-active { position: relative; }
