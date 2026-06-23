@@ -150,14 +150,24 @@
     .session-item:hover { background: var(--hover-bg); color: var(--hover-text); }
 
     /* Sidebar transition */
-    #sidebar { 
-      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), margin-left 0.25s cubic-bezier(0.4,0,0.2,1); 
-      will-change: transform;
+    #sidebar {
+      background: var(--glass-bg);
+      border-color: var(--border);
+      transition: margin-left 0.25s cubic-bezier(0.4,0,0.2,1);
+      margin-left: 0;
     }
     #sidebar.sidebar-hidden { margin-left: -260px; }
     @media (max-width: 639px) { 
-      #sidebar { margin-left: 0; transform: translate3d(0, 0, 0); background: var(--bg) !important; }
-      #sidebar.sidebar-hidden { transform: translate3d(-100%, 0, 0); } 
+      #sidebar { 
+        background: var(--bg);
+        transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+        transform: translate3d(0, 0, 0); 
+        will-change: transform;
+      }
+      #sidebar.sidebar-hidden { 
+        margin-left: 0; 
+        transform: translate3d(-100%, 0, 0); 
+      } 
     }
 
     /* Drag & drop overlay */
@@ -212,8 +222,7 @@
     <div class="flex flex-1 overflow-hidden pt-[60px]">
       <!-- Sidebar -->
       <aside id="sidebar"
-        class="w-[260px] flex-shrink-0 border-r flex flex-col overflow-y-auto max-sm:fixed max-sm:top-[60px] max-sm:bottom-0 max-sm:left-0 max-sm:z-[200] max-sm:bg-[var(--bg)]"
-        style="background:var(--glass-bg);border-color:var(--border)">
+        class="w-[260px] flex-shrink-0 border-r flex flex-col overflow-y-auto max-sm:fixed max-sm:top-[60px] max-sm:bottom-0 max-sm:left-0 max-sm:z-[200]">
         <div class="p-4 border-b" style="border-color:var(--border)">
           <button onclick="clearChat()" class="w-full px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 text-white font-medium cursor-pointer border-0 hover:opacity-90 hover:-translate-y-px transition-all">+ New Chat</button>
         </div>
