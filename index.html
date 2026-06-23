@@ -175,29 +175,29 @@
   <div id="app" class="flex flex-col h-dvh max-w-screen">
 
     <!-- Header -->
-    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-5 z-[100] backdrop-blur-2xl border-b" style="background:var(--header-bg);border-color:var(--border)">
-      <div class="flex items-center gap-3">
-        <button onclick="toggleSidebar()" class="w-9 h-9 rounded-full flex items-center justify-center text-lg bg-transparent border-0 hover:bg-white/5 cursor-pointer" style="color:var(--text)" title="Toggle Sidebar">☰</button>
-        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 flex items-center justify-center text-sm font-bold text-white">W</div>
+    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-4 max-sm:px-2 z-[100] backdrop-blur-2xl border-b gap-2" style="background:var(--header-bg);border-color:var(--border)">
+      <div class="flex items-center gap-3 max-sm:gap-1 flex-shrink-0">
+        <button onclick="toggleSidebar()" class="w-9 h-9 max-sm:w-8 max-sm:h-8 rounded-full flex items-center justify-center text-lg bg-transparent border-0 hover:bg-white/5 cursor-pointer flex-shrink-0" style="color:var(--text)" title="Toggle Sidebar">☰</button>
+        <div class="w-7 h-7 max-sm:w-6 max-sm:h-6 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 flex items-center justify-center text-sm max-sm:text-xs font-bold text-white flex-shrink-0">W</div>
         <span class="font-semibold text-[0.95rem] max-sm:hidden">WebChat</span>
       </div>
 
       <!-- Model Selector -->
-      <div style="position:absolute;left:50%;transform:translateX(-50%);z-index:150">
-        <button onclick="toggleModelMenu()"
-          style="display:inline-flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 18px;min-width:160px;border-radius:8px;border:1px solid var(--border);background:var(--bubble-bg);color:var(--text);font-size:0.875rem;font-weight:500;cursor:pointer">
-          <span id="model-label">GPT-5.5</span>
-          <span style="font-size:10px;opacity:0.6">▼</span>
+      <div class="flex-1 flex justify-center min-w-0 relative z-[150]">
+        <button onclick="toggleModelMenu()" class="flex items-center justify-between gap-2 px-4 py-2 max-sm:px-2 min-w-[120px] max-w-full rounded-lg border cursor-pointer"
+          style="border-color:var(--border);background:var(--bubble-bg);color:var(--text);font-size:0.875rem;font-weight:500;">
+          <span id="model-label" class="truncate min-w-0 flex-1 text-left">GPT-5.5</span>
+          <span style="font-size:10px;opacity:0.6" class="flex-shrink-0">▼</span>
         </button>
         <div id="model-dropdown" class="hidden" style="position:absolute;top:100%;margin-top:6px;left:50%;transform:translateX(-50%);min-width:220px;border-radius:12px;background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);padding:6px;z-index:200;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <button onclick="clearChat()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg" style="color:var(--text)" title="New Chat">➕</button>
-        <button onclick="toggleTheme()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg" style="color:var(--text)" title="Toggle theme" id="theme-btn">🌙</button>
-        <button onclick="openSettings()" class="px-4 py-2 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-xl" style="color:var(--text)" title="Settings">⚙</button>
-        <div id="auth-area"></div>
+      <div class="flex items-center gap-2 max-sm:gap-0 flex-shrink-0">
+        <button onclick="clearChat()" class="px-3 py-2 max-sm:px-1 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg flex-shrink-0" style="color:var(--text)" title="New Chat">➕</button>
+        <button onclick="toggleTheme()" class="px-3 py-2 max-sm:px-1 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-lg flex-shrink-0" style="color:var(--text)" title="Toggle theme" id="theme-btn">🌙</button>
+        <button onclick="openSettings()" class="px-3 py-2 max-sm:px-1 rounded-lg bg-transparent border-0 cursor-pointer hover:opacity-70 text-xl flex-shrink-0" style="color:var(--text)" title="Settings">⚙</button>
+        <div id="auth-area" class="flex-shrink-0 pl-1"></div>
       </div>
     </header>
 
