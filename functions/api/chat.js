@@ -72,7 +72,7 @@ export async function onRequestPost(context) {
       };
 
       try {
-        const gen = streamChat(provider, apiKey, model, messages);
+        const gen = streamChat(provider, apiKey, model, messages, context.request.signal);
         for await (const chunk of gen) {
           if (chunk.text) {
             assistantContent += chunk.text;
@@ -83,17 +83,21 @@ export async function onRequestPost(context) {
           }
         }
       } catch (err) {
+        if (err.name === 'AbortError') {
+          // Client disconnected early, do nothing
+          return;
+        }
         const errMsg = `\n\n⚠️ **Error:** ${err.message || 'Unknown error'}`;
         assistantContent += errMsg;
-        try { sendEvent('text', errMsg); } catch { /* client may have disconnected */ }
+        try { sendEvent('text', errMsg); } catch { /* ignore */ }
       } finally {
-        if (sessionId && assistantContent) {
+        if (sessionId && assistantContent && !context.request.signal.aborted) {
           context.waitUntil(
             context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)')
               .bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent).run()
           );
         }
-        controller.close();
+        try { controller.close(); } catch { /* ignore */ }
       }
     },
   });
@@ -117,35 +121,50 @@ export async function onRequestPost(context) {
  */
 async function fetchWithTimeout(url, options, timeoutMs = 30000) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+  
+  const clientSignal = options.signal;
+  const abortHandler = () => controller.abort(clientSignal?.reason || new Error('Aborted by client'));
+  
+  if (clientSignal) {
+    if (clientSignal.aborted) throw new DOMException('Aborted', 'AbortError');
+    clientSignal.addEventListener('abort', abortHandler);
+  }
+
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+      if (controller.signal.reason === 'timeout') {
+        throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+      }
+      throw err; // Client disconnected
     }
     throw err;
   } finally {
     clearTimeout(timer);
+    if (clientSignal) {
+      clientSignal.removeEventListener('abort', abortHandler);
+    }
   }
 }
 
-async function* streamChat(provider, apiKey, model, messages) {
+async function* streamChat(provider, apiKey, model, messages, signal) {
   switch (provider) {
     case 'openai':
-      yield* streamOpenAI(apiKey, model, messages);
+      yield* streamOpenAI(apiKey, model, messages, signal);
       break;
     case 'claude':
-      yield* streamAnthropic(apiKey, model, messages);
+      yield* streamAnthropic(apiKey, model, messages, signal);
       break;
     case 'gemini':
-      yield* streamGemini(apiKey, model, messages);
+      yield* streamGemini(apiKey, model, messages, signal);
       break;
     case 'deepseek':
-      yield* streamOpenAICompatible(apiKey, model, messages, 'https://api.deepseek.com/v1/chat/completions', 'DeepSeek');
+      yield* streamOpenAICompatible(apiKey, model, messages, 'https://api.deepseek.com/v1/chat/completions', 'DeepSeek', signal);
       break;
     case 'openrouter':
-      yield* streamOpenAICompatible(apiKey, model, messages, 'https://openrouter.ai/api/v1/chat/completions', 'OpenRouter');
+      yield* streamOpenAICompatible(apiKey, model, messages, 'https://openrouter.ai/api/v1/chat/completions', 'OpenRouter', signal);
       break;
     default:
       throw new Error(`Unsupported provider: ${provider}`);
@@ -154,7 +173,7 @@ async function* streamChat(provider, apiKey, model, messages) {
 
 /* ── OpenAI ────────────────────────────────────────────────── */
 
-async function* streamOpenAI(apiKey, model, messages) {
+async function* streamOpenAI(apiKey, model, messages, signal) {
   const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -165,6 +184,7 @@ async function* streamOpenAI(apiKey, model, messages) {
       model, messages, stream: true,
       stream_options: { include_usage: true },
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -187,7 +207,13 @@ async function* streamOpenAI(apiKey, model, messages) {
 
 /* ── Anthropic ─────────────────────────────────────────────── */
 
-async function* streamAnthropic(apiKey, model, messages) {
+async function* streamAnthropic(apiKey, model, messages, signal) {
+  const systemMsg = messages.find((m) => m.role === 'system')?.content;
+  const chatMessages = messages.filter((m) => m.role !== 'system').map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
   const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -198,13 +224,12 @@ async function* streamAnthropic(apiKey, model, messages) {
     body: JSON.stringify({
       model,
       max_tokens: 16384,
+      ...(systemMsg ? { system: systemMsg } : {}),
       ...(supportsThinking(model) ? { thinking: { type: 'enabled', budget_tokens: 8192 } } : {}),
-      messages: messages.map((m) => ({
-        role: m.role === 'system' ? 'user' : m.role,
-        content: m.content,
-      })),
+      messages: chatMessages,
       stream: true,
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -254,18 +279,25 @@ async function* streamAnthropic(apiKey, model, messages) {
 
 /* ── Google Gemini ─────────────────────────────────────────── */
 
-async function* streamGemini(apiKey, model, messages) {
-  const contents = messages.map((m) => ({
+async function* streamGemini(apiKey, model, messages, signal) {
+  const systemMsg = messages.find((m) => m.role === 'system')?.content;
+  const chatMessages = messages.filter((m) => m.role !== 'system').map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
   }));
+
+  const body = { contents: chatMessages };
+  if (systemMsg) {
+    body.systemInstruction = { parts: [{ text: systemMsg }] };
+  }
 
   const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify(body),
+      signal,
     },
   );
 
@@ -308,7 +340,7 @@ async function* streamGemini(apiKey, model, messages) {
 
 /* ── OpenAI-Compatible (DeepSeek, OpenRouter) ──────────────── */
 
-async function* streamOpenAICompatible(apiKey, model, messages, baseUrl, providerName) {
+async function* streamOpenAICompatible(apiKey, model, messages, baseUrl, providerName, signal) {
   const res = await fetchWithTimeout(baseUrl, {
     method: 'POST',
     headers: {
@@ -319,6 +351,7 @@ async function* streamOpenAICompatible(apiKey, model, messages, baseUrl, provide
       model, messages, stream: true,
       stream_options: { include_usage: true },
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -393,34 +426,51 @@ async function* parseSSE(body, extractContent) {
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (value) {
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (!trimmed.startsWith('data: ')) continue;
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed === 'data: [DONE]') continue;
-      if (!trimmed.startsWith('data: ')) continue;
+          let json;
+          try {
+            json = JSON.parse(trimmed.slice(6));
+          } catch {
+            continue; // Skip malformed JSON chunks
+          }
 
-      let json;
-      try {
-        json = JSON.parse(trimmed.slice(6));
-      } catch {
-        continue; // Skip malformed JSON chunks
+          // Detect API-level errors in stream
+          if (json.type === 'error' || json.error) {
+            const errMsg = typeof json.error === 'string' ? json.error : json.error?.message || 'API stream error';
+            throw new Error(errMsg);
+          }
+
+          const content = extractContent(json);
+          if (content) yield content;
+        }
       }
-
-      // Detect API-level errors in stream
-      if (json.type === 'error' || json.error) {
-        const errMsg = typeof json.error === 'string' ? json.error : json.error?.message || 'API stream error';
-        throw new Error(errMsg);
+      if (done) {
+        if (buffer.trim()) {
+          // Process any remaining buffer
+          if (buffer.trim().startsWith('data: ')) {
+            try {
+              const json = JSON.parse(buffer.trim().slice(6));
+              const content = extractContent(json);
+              if (content) yield content;
+            } catch { /* ignore */ }
+          }
+        }
+        break;
       }
-
-      const content = extractContent(json);
-      if (content) yield content;
     }
+  } finally {
+    reader.releaseLock();
   }
 }
