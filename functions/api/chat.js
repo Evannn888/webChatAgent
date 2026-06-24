@@ -93,7 +93,7 @@ export async function onRequestPost(context) {
         assistantContent += errMsg;
         try { sendEvent('text', errMsg); } catch { /* ignore */ }
       } finally {
-        if (sessionId && assistantContent && !hasError && !context.request.signal.aborted) {
+        if (sessionId && assistantContent) {
           context.waitUntil(
             context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)')
               .bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent).run()
@@ -434,6 +434,7 @@ async function* parseSSE(body, extractContent) {
         buffer += decoder.decode(value, { stream: !done });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
+        if (buffer.length > 1024 * 1024) throw new Error('SSE chunk too large, possible malformed stream');
 
         for (const line of lines) {
           const trimmed = line.trim();

@@ -382,6 +382,9 @@
         const numFiles = parts.length - 1;
         msg.displayContent = textPart || `[Sent ${numFiles} file(s)]`;
       }
+      if (!msg.renderedHtml && msg.role !== 'user' && msg.content) {
+        msg.renderedHtml = renderMarkdown(msg.content);
+      }
       return msg;
     }
 
@@ -558,7 +561,7 @@
           : '';
         const cleanContent = (msg.displayContent || msg.content) ? (msg.displayContent || msg.content).replace(/<\|usage:[^|]+\|>/g, '') : '';
         const content = cleanContent
-          ? (isUser ? escHtml(cleanContent) : renderMarkdown(cleanContent))
+          ? (isUser ? escHtml(cleanContent) : (msg.renderedHtml || renderMarkdown(cleanContent)))
           : (isUser ? '' : '<span class="opacity-40">…</span>');
         const usageHtml = msg.usage && msg.usage.input > 0
           ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] opacity-70" style="color:var(--muted)">${formatUsage(msg.usage)}</div>`
@@ -609,13 +612,15 @@
       // Throttle rendering to avoid heavy latency and main thread blocking
       if (msg._renderTimer) return;
       
+      const delay = Math.max(50, msg.content.length > 5000 ? 200 : 100);
+      
       msg._renderTimer = setTimeout(() => {
         msg._renderTimer = null;
         if (contentDiv.isConnected && msg.content) {
           contentDiv.innerHTML = renderMarkdown(msg.content);
           const c = $('#chat-container'); if (c) c.scrollTop = c.scrollHeight;
         }
-      }, 50);
+      }, delay);
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -679,6 +684,7 @@
           sseBuffer += decoder.decode(value, { stream: true });
           const sseEvents = sseBuffer.split('\n\n');
           sseBuffer = sseEvents.pop();
+          if (sseBuffer.length > 1024 * 1024) throw new Error('Stream buffer exceeded safety limit');
           for (const eventStr of sseEvents) {
             if (!eventStr.trim()) continue;
             const lines = eventStr.split('\n');
@@ -709,8 +715,9 @@
         // Stop progressive display and do final render
         if (assistantMsg._renderTimer) { clearTimeout(assistantMsg._renderTimer); assistantMsg._renderTimer = null; }
         if (assistantMsg.content && !state.error) {
+          assistantMsg.renderedHtml = renderMarkdown(assistantMsg.content);
           const cd = document.getElementById(`content-${assistantMsg.id}`);
-          if (cd) cd.innerHTML = renderMarkdown(assistantMsg.content);
+          if (cd) cd.innerHTML = assistantMsg.renderedHtml;
           if (assistantMsg.usage) injectUsageBadge(assistantMsg);
         }
         if (state.error || !assistantMsg.content) renderMessages();
