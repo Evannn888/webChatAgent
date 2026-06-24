@@ -1,11 +1,12 @@
-import { checkAuth } from './api.js';
+import { checkAuth, loadSession, deleteSession } from './api.js';
 import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
-  handleInputKeydown, adjustHeight 
+  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
 } from './ui.js';
 import { openSettings, closeSettingsModal, saveKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
+import { state } from './state.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   window.toggleSidebar = toggleSidebar;
@@ -32,6 +33,31 @@ document.addEventListener('DOMContentLoaded', () => {
       const toggleBtn = document.querySelector('button[title="Toggle Sidebar"]');
       if (sidebar && !sidebar.classList.contains('sidebar-hidden') && !sidebar.contains(e.target) && toggleBtn && !toggleBtn.contains(e.target)) {
         toggleSidebar();
+      }
+    }
+
+    // Session List Event Delegation
+    const sessionList = document.getElementById('session-list');
+    if (sessionList && sessionList.contains(e.target)) {
+      const delBtn = e.target.closest('.session-del');
+      if (delBtn) {
+        deleteSession(delBtn.getAttribute('data-id'), e);
+        return;
+      }
+      const item = e.target.closest('.session-item');
+      if (item) {
+        loadSession(item.getAttribute('data-id'));
+      }
+    }
+
+    // File Preview Event Delegation
+    const preview = document.getElementById('file-preview');
+    if (preview && preview.contains(e.target)) {
+      const btn = e.target.closest('button');
+      if (btn && btn.hasAttribute('data-idx')) {
+        state.files.splice(parseInt(btn.getAttribute('data-idx')), 1);
+        renderFilePreview();
+        updateSendBtn();
       }
     }
   });

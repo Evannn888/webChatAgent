@@ -89,16 +89,9 @@ export function renderSessions() {
   }
   list.innerHTML = state.sessions.map(s => `
     <div class="session-item flex items-center justify-between px-4 py-3 border-b cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis text-sm transition-colors ${s.id === state.currentSessionId ? 'bg-indigo-600/15 !text-white border-l-[3px] border-l-indigo-600' : ''}" style="color:var(--text2)" data-id="${s.id}">
-      <div class="flex-1 overflow-hidden text-ellipsis">${escHtml(s.title || 'New Chat')}</div>
+      <div class="flex-1 overflow-hidden text-ellipsis pointer-events-none">${escHtml(s.title || 'New Chat')}</div>
       <button class="session-del p-1 bg-transparent border-0 cursor-pointer" style="color:var(--muted)" title="Delete Chat" data-id="${s.id}">✕</button>
     </div>`).join('');
-
-  list.querySelectorAll('.session-item').forEach(el => {
-    el.onclick = () => loadSession(el.getAttribute('data-id'));
-  });
-  list.querySelectorAll('.session-del').forEach(el => {
-    el.onclick = (e) => deleteSession(el.getAttribute('data-id'), e);
-  });
 }
 
 export function renderMessages() {
@@ -166,18 +159,29 @@ export function startProgressiveDisplay(msg) {
   const contentDiv = document.getElementById(`content-${msg.id}`);
   if (!contentDiv) return;
   
-  if (msg._renderTimer) return;
-  
-  const delay = Math.max(50, msg.content.length > 5000 ? 200 : 100);
-  
-  msg._renderTimer = setTimeout(() => {
-    msg._renderTimer = null;
+  if (msg._renderFrameRequested) return;
+
+  const now = performance.now();
+  if (msg._lastRenderTime && now - msg._lastRenderTime < 50) {
+    if (!msg._renderTimer) {
+      msg._renderTimer = setTimeout(() => {
+        msg._renderTimer = null;
+        startProgressiveDisplay(msg);
+      }, 50 - (now - msg._lastRenderTime));
+    }
+    return;
+  }
+
+  msg._renderFrameRequested = true;
+  requestAnimationFrame(() => {
+    msg._renderFrameRequested = false;
+    msg._lastRenderTime = performance.now();
     if (contentDiv.isConnected && msg.content) {
       contentDiv.innerHTML = renderMarkdown(msg.content);
       const c = document.getElementById('chat-container'); 
       if (c) c.scrollTop = c.scrollHeight;
     }
-  }, delay);
+  });
 }
 
 export function showInputError(msg) {
@@ -205,17 +209,10 @@ export function renderFilePreview() {
   if (state.files.length === 0) { preview.classList.add('hidden'); return; }
   preview.innerHTML = state.files.map((f, i) => `
     <div class="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded bg-black/10 border text-xs">
-      <span class="truncate max-w-[120px]">${escHtml(f.name)}</span>
+      <span class="truncate max-w-[120px] pointer-events-none">${escHtml(f.name)}</span>
       <button class="hover:text-red-400 p-0.5" data-idx="${i}">✕</button>
     </div>
   `).join('');
-  preview.querySelectorAll('button').forEach(btn => {
-    btn.onclick = () => {
-      state.files.splice(parseInt(btn.getAttribute('data-idx')), 1);
-      renderFilePreview();
-      updateSendBtn();
-    };
-  });
   preview.classList.remove('hidden');
 }
 
