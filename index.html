@@ -376,6 +376,12 @@
         try { msg.usage = JSON.parse(m[1]); } catch {}
         msg.content = msg.content.replace(/<\|usage:[^|]+\|>/, '');
       }
+      if (msg.role === 'user' && msg.content?.includes('\n\n---\n\n')) {
+        const parts = msg.content.split('\n\n---\n\n');
+        const textPart = parts[0];
+        const numFiles = parts.length - 1;
+        msg.displayContent = textPart || `[Sent ${numFiles} file(s)]`;
+      }
       return msg;
     }
 
@@ -550,7 +556,7 @@
         const filesHtml = msg.files?.length
           ? `<div class="flex gap-1.5 flex-wrap mb-2 opacity-80 text-xs">${msg.files.map(f => `<span class="px-2 py-0.5 bg-white/10 rounded">📎 ${escHtml(f.name)}</span>`).join('')}</div>`
           : '';
-        const cleanContent = msg.content ? msg.content.replace(/<\|usage:[^|]+\|>/g, '') : '';
+        const cleanContent = (msg.displayContent || msg.content) ? (msg.displayContent || msg.content).replace(/<\|usage:[^|]+\|>/g, '') : '';
         const content = cleanContent
           ? (isUser ? escHtml(cleanContent) : renderMarkdown(cleanContent))
           : (isUser ? '' : '<span class="opacity-40">…</span>');
@@ -599,26 +605,17 @@
     function startProgressiveDisplay(msg) {
       const contentDiv = document.getElementById(`content-${msg.id}`);
       if (!contentDiv) return;
-      if (msg._displayTimer) cancelAnimationFrame(msg._displayTimer);
-      if (msg._displayLen == null) msg._displayLen = 0;
-
-      function step() {
-        if (msg._stopDisplay || msg._displayLen >= msg.content.length) {
-          msg._displayTimer = null;
-          if (contentDiv.isConnected && msg.content) {
-            contentDiv.innerHTML = renderMarkdown(msg.content);
-            const c = $('#chat-container'); if (c) c.scrollTop = c.scrollHeight;
-          }
-          return;
+      
+      // Throttle rendering to avoid heavy latency and main thread blocking
+      if (msg._renderTimer) return;
+      
+      msg._renderTimer = setTimeout(() => {
+        msg._renderTimer = null;
+        if (contentDiv.isConnected && msg.content) {
+          contentDiv.innerHTML = renderMarkdown(msg.content);
+          const c = $('#chat-container'); if (c) c.scrollTop = c.scrollHeight;
         }
-        const pending = msg.content.length - msg._displayLen;
-        const advance = Math.max(3, Math.min(20, Math.ceil(pending / 8)));
-        msg._displayLen = Math.min(msg._displayLen + advance, msg.content.length);
-        contentDiv.innerHTML = renderMarkdown(msg.content.slice(0, msg._displayLen));
-        const c = $('#chat-container'); if (c) c.scrollTop = c.scrollHeight;
-        msg._displayTimer = requestAnimationFrame(step);
-      }
-      msg._displayTimer = requestAnimationFrame(step);
+      }, 50);
     }
 
     /* ══════════════════════════════════════════════════════════
@@ -645,7 +642,8 @@
 
       state.messages.push({
         id: nextId(), role: 'user',
-        content: text || `[Sent ${state.files.length} file(s)]`,
+        content: userContent,
+        displayContent: text || `[Sent ${state.files.length} file(s)]`,
         files: state.files.map(f => ({ name: f.name, type: f.type })),
       });
       const assistantMsg = { id: nextId(), role: 'assistant', content: '' };
@@ -664,7 +662,7 @@
           body: JSON.stringify({
             provider: state.currentModel.provider, model: state.currentModel.model,
             messages: state.messages.filter(m => m.content && m !== assistantMsg)
-              .map(m => ({ role: m.role, content: m === userMsg ? userContent : m.content })),
+              .map(m => ({ role: m.role, content: m.content })),
             sessionId: state.currentSessionId,
           }),
         });
@@ -673,7 +671,6 @@
         const reader = res.body.getReader();
         activeStream = { reader, assistantMsg };
         const decoder = new TextDecoder();
-        assistantMsg._displayLen = 0; assistantMsg._stopDisplay = false;
         let sseBuffer = '';
 
         while (true) {
@@ -706,13 +703,11 @@
         if (err.name === 'AbortError') {
           if (!assistantMsg.content) assistantMsg.content = '[Generation stopped]';
         } else if (!state.error) { state.error = err.message || 'Failed to send message'; }
-        assistantMsg._stopDisplay = true;
-        if (assistantMsg._displayTimer) { cancelAnimationFrame(assistantMsg._displayTimer); assistantMsg._displayTimer = null; }
+        if (assistantMsg._renderTimer) { clearTimeout(assistantMsg._renderTimer); assistantMsg._renderTimer = null; }
       } finally {
         activeStream = null; syncGenerating(false);
         // Stop progressive display and do final render
-        assistantMsg._stopDisplay = true;
-        if (assistantMsg._displayTimer) { cancelAnimationFrame(assistantMsg._displayTimer); assistantMsg._displayTimer = null; }
+        if (assistantMsg._renderTimer) { clearTimeout(assistantMsg._renderTimer); assistantMsg._renderTimer = null; }
         if (assistantMsg.content && !state.error) {
           const cd = document.getElementById(`content-${assistantMsg.id}`);
           if (cd) cd.innerHTML = renderMarkdown(assistantMsg.content);
@@ -960,7 +955,9 @@
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         pages.push(`[Page ${i}]\n${content.items.map(it => it.str).join(' ')}`);
+        page.cleanup(); // Prevent memory leak for large PDFs
       }
+      await pdf.destroy(); // Free up worker resources
       return pages.join('\n\n');
     }
 
