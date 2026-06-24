@@ -94,16 +94,15 @@ export async function onRequestDelete(context) {
     return Response.json({ error: 'id query param is required' }, { status: 400 });
   }
 
-  // Verify the key belongs to this user
-  const existing = await context.env.DB.prepare(
-    'SELECT id FROM api_key WHERE id = ? AND userId = ? LIMIT 1',
-  ).bind(id, user.sub).first();
+  // Delete key securely verifying ownership in one roundtrip
+  const { meta } = await context.env.DB.prepare(
+    'DELETE FROM api_key WHERE id = ? AND userId = ?'
+  ).bind(id, user.sub).run();
 
-  if (!existing) {
+  if (meta.changes === 0) {
     return Response.json({ error: 'Key not found' }, { status: 404 });
   }
 
-  await context.env.DB.prepare('DELETE FROM api_key WHERE id = ?').bind(id).run();
   return Response.json({ success: true });
 }
 

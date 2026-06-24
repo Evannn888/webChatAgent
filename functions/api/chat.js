@@ -57,7 +57,7 @@ export async function onRequestPost(context) {
       context.env.DB.batch([
         context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
         context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
-      ])
+      ]).catch(err => console.error('Failed to save user message:', err))
     );
   }
 
@@ -66,6 +66,7 @@ export async function onRequestPost(context) {
     async start(controller) {
       const encoder = new TextEncoder();
       let assistantContent = '';
+      let hasError = false;
 
       const sendEvent = (event, data) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
@@ -87,14 +88,16 @@ export async function onRequestPost(context) {
           // Client disconnected early, do nothing
           return;
         }
+        hasError = true;
         const errMsg = `\n\n⚠️ **Error:** ${err.message || 'Unknown error'}`;
         assistantContent += errMsg;
         try { sendEvent('text', errMsg); } catch { /* ignore */ }
       } finally {
-        if (sessionId && assistantContent && !context.request.signal.aborted) {
+        if (sessionId && assistantContent && !hasError && !context.request.signal.aborted) {
           context.waitUntil(
             context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)')
               .bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent).run()
+              .catch(err => console.error('Failed to save assistant message:', err))
           );
         }
         try { controller.close(); } catch { /* ignore */ }

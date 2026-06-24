@@ -7,22 +7,16 @@ export async function onRequestGet(context) {
   const sessionId = context.params.id;
 
   try {
-    const session = await context.env.DB.prepare(
-      'SELECT id FROM session WHERE id = ? AND user_id = ?'
-    ).bind(sessionId, user.sub).first();
+    const results = await context.env.DB.batch([
+      context.env.DB.prepare('SELECT id FROM session WHERE id = ? AND user_id = ?').bind(sessionId, user.sub),
+      context.env.DB.prepare('SELECT role, content, created_at FROM message WHERE session_id = ? ORDER BY created_at ASC').bind(sessionId)
+    ]);
 
-    if (!session) {
+    if (!results[0].results.length) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const { results: messages } = await context.env.DB.prepare(`
-      SELECT role, content, created_at 
-      FROM message 
-      WHERE session_id = ? 
-      ORDER BY created_at ASC
-    `).bind(sessionId).all();
-
-    return Response.json({ messages });
+    return Response.json({ messages: results[1].results });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
@@ -60,9 +54,10 @@ export async function onRequestDelete(context) {
   const sessionId = context.params.id;
 
   try {
-    await context.env.DB.prepare(
-      'DELETE FROM session WHERE id = ? AND user_id = ?'
-    ).bind(sessionId, user.sub).run();
+    await context.env.DB.batch([
+      context.env.DB.prepare('DELETE FROM message WHERE session_id IN (SELECT id FROM session WHERE id = ? AND user_id = ?)').bind(sessionId, user.sub),
+      context.env.DB.prepare('DELETE FROM session WHERE id = ? AND user_id = ?').bind(sessionId, user.sub)
+    ]);
 
     return Response.json({ success: true });
   } catch (err) {
