@@ -116,36 +116,34 @@ export async function onRequestPost(context) {
    Each generator yields { text: string } and/or { usage: object }.
    ══════════════════════════════════════════════════════════════ */
 
-/**
- * Fetch with a timeout to prevent hanging requests.
- */
 async function fetchWithTimeout(url, options, timeoutMs = 30000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   
   const clientSignal = options.signal;
-  const abortHandler = () => controller.abort(clientSignal?.reason || new Error('Aborted by client'));
+  const abortHandler = () => controller.abort(clientSignal?.reason || 'client_aborted');
   
   if (clientSignal) {
-    if (clientSignal.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (clientSignal.aborted) {
+      clearTimeout(timer);
+      throw new DOMException('Aborted', 'AbortError');
+    }
     clientSignal.addEventListener('abort', abortHandler);
   }
 
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    // CRITICAL: Do NOT remove the abort listener here.
+    // The response body stream needs to be cancelled if the client disconnects!
+    // The listener is naturally garbage collected when the request context is destroyed.
+    return res;
   } catch (err) {
-    if (err.name === 'AbortError') {
-      if (controller.signal.reason === 'timeout') {
-        throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
-      }
-      throw err; // Client disconnected
+    clearTimeout(timer);
+    if (controller.signal.reason === 'timeout' || (err.name === 'AbortError' && err.message.includes('timeout'))) {
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
     }
     throw err;
-  } finally {
-    clearTimeout(timer);
-    if (clientSignal) {
-      clientSignal.removeEventListener('abort', abortHandler);
-    }
   }
 }
 
@@ -471,6 +469,9 @@ async function* parseSSE(body, extractContent) {
       }
     }
   } finally {
+    try {
+      await reader.cancel();
+    } catch { /* ignore */ }
     reader.releaseLock();
   }
 }
