@@ -1,5 +1,5 @@
 import { state, nextId, activeStream, setActiveStream } from './state.js';
-import { syncGenerating, renderMessages, renderFilePreview, showInputError, updateSendBtn, adjustHeight, startProgressiveDisplay, injectUsageBadge, renderMarkdown } from './ui.js';
+import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, startProgressiveDisplay, injectUsageBadge, renderMarkdown } from './ui.js';
 import { generateSessionTitle } from './api.js';
 
 export async function handleSend() {
@@ -113,8 +113,8 @@ export function clearChat() {
   state.currentSessionId = null; localStorage.removeItem('currentSessionId');
   state.messages = []; state.error = null; state.files = [];
   syncGenerating(false);
-  renderMessages(); 
-  import('./ui.js').then(({renderSessions}) => renderSessions());
+  renderMessages();
+  renderSessions();
 }
 
 async function ensureSession() {
@@ -128,6 +128,6 @@ async function ensureSession() {
     state.currentSessionId = data.session.id;
     localStorage.setItem('currentSessionId', state.currentSessionId);
     state.sessions.unshift(data.session);
-    import('./ui.js').then(({renderSessions}) => renderSessions());
+    renderSessions();
   }
 }

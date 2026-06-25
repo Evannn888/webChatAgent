@@ -4,7 +4,7 @@ import {
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
   handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
 } from './ui.js';
-import { openSettings, closeSettingsModal, saveKey } from './settings.js';
+import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
 import { state } from './state.js';
 
@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.stopGenerating = stopGenerating;
   window.closeSettingsModal = closeSettingsModal;
   window.saveKey = saveKey;
+  window.deleteKey = deleteKey;
 
   document.addEventListener('click', (e) => {
     const dd = document.getElementById('model-dropdown');

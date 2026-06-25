@@ -1,7 +1,6 @@
 import { state } from './state.js';
 import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js';
-import { login, logout, deleteSession } from './api.js';
-import { loadSession } from './api.js'; // to avoid circular dep if needed, but it's ok
+import { login, logout } from './api.js';
 
 export function escHtml(str) {
   const div = document.createElement('div');
@@ -73,7 +72,7 @@ export function renderAuth() {
     document.getElementById('btn-login').onclick = login;
   } else {
     area.innerHTML = `<div class="flex items-center gap-2">
-      ${state.user.image ? `<img src="${state.user.image}" alt="" class="w-7 h-7 rounded-full">` : ''}
+      ${state.user.image ? `<img src="${escHtml(state.user.image)}" alt="" class="w-7 h-7 rounded-full">` : ''}
       ${state.user.name ? `<span class="max-sm:hidden text-sm font-medium" style="color:var(--text)">${escHtml(state.user.name)}</span>` : ''}
       <button id="btn-logout" class="max-sm:hidden px-3 py-2 rounded-lg bg-transparent border-0 cursor-pointer text-sm" style="color:var(--text)">Logout</button>
     </div>`;
@@ -283,57 +282,11 @@ export function selectModel(modelId) {
   closeModelMenu();
 }
 
-export function handleFileSelect(event) {
-  const fileInput = document.getElementById('file-input');
-  const files = Array.from(event.target.files || []);
-  if (!files.length) return;
-
-  const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain', 'text/csv', 'application/json'];
-  const maxBytes = 10 * 1024 * 1024; // 10MB
-
-  Promise.all(files.map(f => {
-    if (!validTypes.includes(f.type) && !f.type.startsWith('text/')) {
-      showInputError(`File type not supported: ${f.name}`);
-      return null;
-    }
-    if (f.size > maxBytes) {
-      showInputError(`File too large (max 10MB): ${f.name}`);
-      return null;
-    }
-
-    return new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        let content = e.target.result;
-        if (f.type.startsWith('image/')) {
-          content = content.split(',')[1]; // Base64
-        }
-        resolve({ name: f.name, type: f.type, content });
-      };
-      if (f.type.startsWith('image/')) reader.readAsDataURL(f);
-      else reader.readAsText(f);
-    });
-  })).then(results => {
-    state.files.push(...results.filter(Boolean));
-    renderFilePreview();
-    updateSendBtn();
-  });
-  fileInput.value = '';
-}
-
 export function handleInputKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     import('./chat.js').then(({handleSend}) => handleSend());
   }
-}
-
-export function openSettings() {
-  document.getElementById('settings-modal').classList.remove('hidden');
-}
-
-export function closeSettingsModal() {
-  document.getElementById('settings-modal').classList.add('hidden');
 }
 
 // Ensure marked is setup once UI loads

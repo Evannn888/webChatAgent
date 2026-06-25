@@ -50,6 +50,10 @@ async function fetchWithTimeout(url, options, timeoutMs = 30000) {
       throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
     }
     throw err;
+  } finally {
+    if (clientSignal) {
+      clientSignal.removeEventListener('abort', abortHandler);
+    }
   }
 }
 
