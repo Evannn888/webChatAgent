@@ -23,18 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
   window.saveKey = saveKey;
   window.deleteKey = deleteKey;
 
+  // Close sidebar on backdrop tap (mobile)
+  const backdropEl = document.getElementById('sidebar-backdrop');
+  if (backdropEl) {
+    backdropEl.addEventListener('click', () => toggleSidebar());
+  }
+
   document.addEventListener('click', (e) => {
     const dd = document.getElementById('model-dropdown');
     if (dd && !dd.classList.contains('hidden')) {
       const wrapper = dd.parentElement;
       if (!wrapper.contains(e.target)) closeModelMenu();
-    }
-    if (window.innerWidth <= 639) {
-      const sidebar = document.getElementById('sidebar');
-      const toggleBtn = document.querySelector('button[title="Toggle Sidebar"]');
-      if (sidebar && !sidebar.classList.contains('sidebar-hidden') && !sidebar.contains(e.target) && toggleBtn && !toggleBtn.contains(e.target)) {
-        toggleSidebar();
-      }
     }
 
     // Session List Event Delegation

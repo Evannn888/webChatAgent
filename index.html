@@ -51,7 +51,7 @@
   <div id="app" class="flex flex-col h-dvh max-w-screen">
 
     <!-- Header -->
-    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-4 max-sm:px-2 z-[100] backdrop-blur-2xl border-b gap-2" style="background:var(--header-bg);border-color:var(--border)">
+    <header class="fixed top-0 inset-x-0 h-[60px] flex items-center justify-between px-4 max-sm:px-2 z-[100] backdrop-blur-2xl max-sm:backdrop-blur-lg border-b gap-2" style="background:var(--header-bg);border-color:var(--border)">
       <div class="flex items-center gap-3 max-sm:gap-1 flex-shrink-0">
         <button onclick="toggleSidebar()" class="w-9 h-9 max-sm:w-8 max-sm:h-8 rounded-full flex items-center justify-center text-lg bg-transparent border-0 hover:bg-white/5 cursor-pointer flex-shrink-0" style="color:var(--text)" title="Toggle Sidebar">☰</button>
         <div class="w-7 h-7 max-sm:w-6 max-sm:h-6 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 flex items-center justify-center text-sm max-sm:text-xs font-bold text-white flex-shrink-0">W</div>
@@ -79,6 +79,8 @@
 
     <!-- Content -->
     <div class="flex flex-1 overflow-hidden pt-[60px]">
+      <!-- Sidebar backdrop (mobile) -->
+      <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
       <!-- Sidebar -->
       <aside id="sidebar"
         class="w-[260px] flex-shrink-0 border-r flex flex-col overflow-y-auto max-sm:fixed max-sm:top-[60px] max-sm:bottom-0 max-sm:left-0 max-sm:z-[200]">

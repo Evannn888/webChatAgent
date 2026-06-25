@@ -111,10 +111,14 @@ button, a { touch-action: manipulation; }
 #sidebar {
   background: var(--glass-bg);
   border-color: var(--border);
-  transition: margin-left 0.25s cubic-bezier(0.4,0,0.2,1);
   margin-left: 0;
 }
-#sidebar.sidebar-hidden { margin-left: -260px; }
+@media (min-width: 640px) {
+  #sidebar {
+    transition: margin-left 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  #sidebar.sidebar-hidden { margin-left: -260px; }
+}
 @media (max-width: 639px) { 
   #sidebar { 
     background: var(--bg);
@@ -123,9 +127,29 @@ button, a { touch-action: manipulation; }
     will-change: transform;
   }
   #sidebar.sidebar-hidden { 
-    margin-left: 0; 
     transform: translate3d(-100%, 0, 0); 
-  } 
+  }
+  /* Pause ambient blurs on mobile to free GPU for sidebar animation */
+  .animate-ambient-drift {
+    animation-play-state: paused !important;
+  }
+}
+
+/* Sidebar backdrop (mobile) */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 60px;
+  background: rgba(0,0,0,0.4);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.sidebar-backdrop.active {
+  display: block;
+  opacity: 1;
 }
 
 /* Drag & drop overlay */

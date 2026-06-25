@@ -216,7 +216,12 @@ export function renderFilePreview() {
 }
 
 export function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('sidebar-hidden');
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.toggle('sidebar-hidden');
+  if (backdrop) {
+    backdrop.classList.toggle('active', !sidebar.classList.contains('sidebar-hidden'));
+  }
 }
 
 export function toggleTheme() {
