@@ -1,5 +1,5 @@
 import { state, nextId, activeStream, setActiveStream } from './state.js';
-import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, startProgressiveDisplay, injectUsageBadge, renderMarkdown } from './ui.js';
+import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
 import { generateSessionTitle } from './api.js';
 
 export async function handleSend() {
@@ -20,19 +20,25 @@ export async function handleSend() {
     userContent = [text, ...sections].filter(Boolean).join('\n\n---\n\n');
   }
 
-  state.messages.push({
+  const userMsg = {
     id: nextId(), role: 'user',
     content: userContent,
     displayContent: text || `[Sent ${state.files.length} file(s)]`,
     files: state.files.map(f => ({ name: f.name, type: f.type })),
-  });
+  };
+  state.messages.push(userMsg);
   const assistantMsg = { id: nextId(), role: 'assistant', content: '' };
   state.messages.push(assistantMsg);
 
   input.value = ''; state.files = [];
   renderFilePreview(); adjustHeight();
   syncGenerating(true); state.error = null;
-  renderMessages(); updateSendBtn();
+
+  // Incremental: append just the two new messages + typing indicator
+  appendMessage(userMsg);
+  appendMessage(assistantMsg);
+  showTypingIndicator();
+  updateSendBtn();
 
   try {
     await ensureSession();
@@ -69,9 +75,8 @@ export async function handleSend() {
         }
         if (eventType === 'text' && eventData) {
           assistantMsg.content += JSON.parse(eventData);
-          const typingEl = document.getElementById('typing-indicator');
-          if (typingEl) typingEl.remove();
-          startProgressiveDisplay(assistantMsg);
+          removeTypingIndicator();
+          updateMessageContent(assistantMsg);
         } else if (eventType === 'usage' && eventData) {
           assistantMsg.usage = JSON.parse(eventData);
           injectUsageBadge(assistantMsg);
@@ -85,6 +90,7 @@ export async function handleSend() {
     if (assistantMsg._renderTimer) { clearTimeout(assistantMsg._renderTimer); assistantMsg._renderTimer = null; }
   } finally {
     setActiveStream(null); syncGenerating(false);
+    removeTypingIndicator();
     if (assistantMsg._renderTimer) { clearTimeout(assistantMsg._renderTimer); assistantMsg._renderTimer = null; }
     if (assistantMsg.content && !state.error) {
       assistantMsg.renderedHtml = renderMarkdown(assistantMsg.content);
@@ -92,7 +98,11 @@ export async function handleSend() {
       if (cd) cd.innerHTML = assistantMsg.renderedHtml;
       if (assistantMsg.usage) injectUsageBadge(assistantMsg);
     }
-    if (state.error || !assistantMsg.content) renderMessages();
+    if (state.error) showChatError(state.error);
+    if (!assistantMsg.content && !state.error) {
+      const cd = document.getElementById(`content-${assistantMsg.id}`);
+      if (cd) cd.innerHTML = '<span class="placeholder-text">…</span>';
+    }
     input.focus();
     if (isFirstMessage && state.currentSessionId && assistantMsg.content && !state.error) {
       generateSessionTitle(text || 'chat with files');

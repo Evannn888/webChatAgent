@@ -25,8 +25,7 @@ export function injectUsageBadge(msg) {
   const existing = el.querySelector('.msg-usage');
   if (existing) existing.remove();
   const badge = document.createElement('div');
-  badge.className = 'msg-usage ml-3 mt-1 text-[0.7rem] opacity-70';
-  badge.style.color = 'var(--muted)';
+  badge.className = 'msg-usage';
   badge.textContent = formatUsage(msg.usage);
   el.appendChild(badge);
 }
@@ -68,13 +67,13 @@ export function syncGenerating(v) {
 export function renderAuth() {
   const area = document.getElementById('auth-area');
   if (!state.user) {
-    area.innerHTML = '<button id="btn-login" class="px-4 py-2 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-400 text-white font-medium cursor-pointer border-0 hover:opacity-90 transition-all">Sign in</button>';
+    area.innerHTML = '<button id="btn-login" class="btn-primary">Sign in</button>';
     document.getElementById('btn-login').onclick = login;
   } else {
-    area.innerHTML = `<div class="flex items-center gap-2">
-      ${state.user.image ? `<img src="${escHtml(state.user.image)}" alt="" class="w-7 h-7 rounded-full">` : ''}
-      ${state.user.name ? `<span class="max-sm:hidden text-sm font-medium" style="color:var(--text)">${escHtml(state.user.name)}</span>` : ''}
-      <button id="btn-logout" class="max-sm:hidden px-3 py-2 rounded-lg bg-transparent border-0 cursor-pointer text-sm" style="color:var(--text)">Logout</button>
+    area.innerHTML = `<div class="auth-user">
+      ${state.user.image ? `<img src="${escHtml(state.user.image)}" alt="" class="avatar">` : ''}
+      ${state.user.name ? `<span class="user-name">${escHtml(state.user.name)}</span>` : ''}
+      <button id="btn-logout" class="btn-text logout-btn">Logout</button>
     </div>`;
     document.getElementById('btn-logout').onclick = logout;
   }
@@ -83,81 +82,78 @@ export function renderAuth() {
 export function renderSessions() {
   const list = document.getElementById('session-list');
   if (state.sessions.length === 0) {
-    list.innerHTML = '<div class="p-4 text-sm text-center" style="color:var(--muted)">No recent chats</div>';
+    list.innerHTML = '<div class="session-empty">No recent chats</div>';
     return;
   }
   list.innerHTML = state.sessions.map(s => `
-    <div class="session-item flex items-center justify-between px-4 py-3 border-b cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis text-sm transition-colors ${s.id === state.currentSessionId ? 'bg-indigo-600/15 !text-white border-l-[3px] border-l-indigo-600' : ''}" style="color:var(--text2)" data-id="${s.id}">
-      <div class="flex-1 overflow-hidden text-ellipsis pointer-events-none">${escHtml(s.title || 'New Chat')}</div>
-      <button class="session-del p-1 bg-transparent border-0 cursor-pointer" style="color:var(--muted)" title="Delete Chat" data-id="${s.id}">✕</button>
+    <div class="session-item ${s.id === state.currentSessionId ? 'active' : ''}" data-id="${s.id}">
+      <div class="session-title">${escHtml(s.title || 'New Chat')}</div>
+      <button class="session-del" title="Delete Chat" data-id="${s.id}">✕</button>
     </div>`).join('');
 }
 
-export function renderMessages() {
+// ── Incremental DOM Rendering ──────────────────────────────
+
+function createMessageEl(msg) {
+  const isUser = msg.role === 'user';
+  const div = document.createElement('div');
+  div.className = `msg-row ${isUser ? 'msg-user' : 'msg-assistant'}`;
+  div.id = msg.id;
+
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = isUser ? 'You' : 'Assistant';
+  div.appendChild(label);
+
+  const bubble = document.createElement('div');
+  bubble.className = isUser ? 'bubble-user' : 'bubble-assistant';
+
+  // File attachments
+  if (msg.files?.length) {
+    const filesDiv = document.createElement('div');
+    filesDiv.className = 'msg-files';
+    filesDiv.innerHTML = msg.files.map(f => `<span class="file-tag">📎 ${escHtml(f.name)}</span>`).join('');
+    bubble.appendChild(filesDiv);
+  }
+
+  // Content
+  const contentDiv = document.createElement('div');
+  contentDiv.id = `content-${msg.id}`;
+  if (!isUser) contentDiv.className = 'md-content';
+
+  const cleanContent = (msg.displayContent || msg.content) ? (msg.displayContent || msg.content).replace(/<\|usage:[^|]+\|>/g, '') : '';
+  if (cleanContent) {
+    contentDiv.innerHTML = isUser ? escHtml(cleanContent) : (msg.renderedHtml || renderMarkdown(cleanContent));
+  } else if (!isUser) {
+    contentDiv.innerHTML = '<span class="placeholder-text">…</span>';
+  }
+  bubble.appendChild(contentDiv);
+  div.appendChild(bubble);
+
+  // Usage badge
+  if (msg.usage && msg.usage.input > 0) {
+    const usage = document.createElement('div');
+    usage.className = 'msg-usage';
+    usage.textContent = formatUsage(msg.usage);
+    div.appendChild(usage);
+  }
+
+  return div;
+}
+
+export function appendMessage(msg) {
   const container = document.getElementById('chat-container');
   const empty = document.getElementById('empty-state');
-
-  if (state.messages.length === 0) {
-    container.classList.add('hidden'); empty.classList.remove('hidden'); return;
-  }
-  empty.classList.add('hidden'); container.classList.remove('hidden');
-
-  container.innerHTML = state.messages.map(msg => {
-    const isUser = msg.role === 'user';
-    const align = isUser ? 'items-end' : 'items-start';
-    const label = isUser ? 'You' : 'Assistant';
-    const labelColor = isUser ? 'mr-3' : 'ml-3';
-    const labelStyle = isUser ? 'color:#a29bfe' : 'color:var(--muted)';
-    const bubble = isUser
-      ? 'bg-gradient-to-br from-indigo-600 to-purple-400 text-white rounded-[18px_18px_4px_18px] px-[18px] py-[10px]'
-      : 'rounded-[18px_18px_18px_4px] px-5 py-[14px]';
-    const filesHtml = msg.files?.length
-      ? `<div class="flex gap-1.5 flex-wrap mb-2 opacity-80 text-xs">${msg.files.map(f => `<span class="px-2 py-0.5 bg-white/10 rounded">📎 ${escHtml(f.name)}</span>`).join('')}</div>`
-      : '';
-    const cleanContent = (msg.displayContent || msg.content) ? (msg.displayContent || msg.content).replace(/<\|usage:[^|]+\|>/g, '') : '';
-    const content = cleanContent
-      ? (isUser ? escHtml(cleanContent) : (msg.renderedHtml || renderMarkdown(cleanContent)))
-      : (isUser ? '' : '<span class="opacity-40">…</span>');
-    const usageHtml = msg.usage && msg.usage.input > 0
-      ? `<div class="msg-usage ml-3 mt-1 text-[0.7rem] opacity-70" style="color:var(--muted)">${formatUsage(msg.usage)}</div>`
-      : '';
-
-    return `<div class="flex flex-col mb-4 animate-slide-up ${align}" id="${msg.id}">
-      <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 ${labelColor}" style="${labelStyle}">${label}</div>
-      <div class="max-w-[75%] max-sm:max-w-[88%] text-[0.925rem] break-words ${bubble} ${isUser ? '' : 'bubble-assistant'}">
-        ${filesHtml}
-        <div class="${isUser ? '' : 'md-content'}" id="content-${msg.id}">${content}</div>
-      </div>
-      ${usageHtml}
-    </div>`;
-  }).join('');
-
-  if (state.isGenerating) {
-    container.insertAdjacentHTML('beforeend', `
-      <div class="flex flex-col items-start mb-4 animate-fade-in" id="typing-indicator">
-        <div class="text-[0.7rem] font-semibold uppercase tracking-wider mb-1 ml-3" style="color:var(--muted)">ASSISTANT</div>
-        <div class="inline-flex items-center gap-2 px-5 py-[14px] backdrop-blur-lg rounded-[18px_18px_18px_4px] opacity-85 bubble-assistant">
-          <span class="text-[0.85em] font-semibold" style="color:var(--text)">🤔 Thinking</span>
-          <span class="inline-flex items-center gap-1">
-            <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0s"></span>
-            <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0.2s"></span>
-            <span class="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot" style="background:var(--muted);animation-delay:0.4s"></span>
-          </span>
-        </div>
-      </div>`);
-  }
-
-  if (state.error) {
-    container.insertAdjacentHTML('beforeend', `<div class="px-4 py-3 rounded-xl border text-sm mb-4 animate-fade-in" style="background:var(--error-bg);border-color:var(--error-border);color:#ef4444">⚠️ ${escHtml(state.error)}</div>`);
-  }
-
+  empty.classList.add('hidden');
+  container.classList.remove('hidden');
+  container.appendChild(createMessageEl(msg));
   container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
 }
 
-export function startProgressiveDisplay(msg) {
+export function updateMessageContent(msg) {
   const contentDiv = document.getElementById(`content-${msg.id}`);
   if (!contentDiv) return;
-  
+
   if (msg._renderFrameRequested) return;
 
   const now = performance.now();
@@ -165,7 +161,7 @@ export function startProgressiveDisplay(msg) {
     if (!msg._renderTimer) {
       msg._renderTimer = setTimeout(() => {
         msg._renderTimer = null;
-        startProgressiveDisplay(msg);
+        updateMessageContent(msg);
       }, 50 - (now - msg._lastRenderTime));
     }
     return;
@@ -177,10 +173,77 @@ export function startProgressiveDisplay(msg) {
     msg._lastRenderTime = performance.now();
     if (contentDiv.isConnected && msg.content) {
       contentDiv.innerHTML = renderMarkdown(msg.content);
-      const c = document.getElementById('chat-container'); 
+      const c = document.getElementById('chat-container');
       if (c) c.scrollTop = c.scrollHeight;
     }
   });
+}
+
+export function showTypingIndicator() {
+  removeTypingIndicator();
+  const container = document.getElementById('chat-container');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.className = 'msg-row msg-assistant';
+  div.id = 'typing-indicator';
+  div.innerHTML = `
+    <div class="msg-label">Assistant</div>
+    <div class="bubble-assistant" style="opacity:0.85">
+      <span style="font-size:0.85em;font-weight:600">🤔 Thinking</span>
+      <span class="typing-dots">
+        <span></span><span></span><span></span>
+      </span>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+}
+
+export function removeTypingIndicator() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+export function showChatError(errorText) {
+  const container = document.getElementById('chat-container');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.className = 'msg-error';
+  div.textContent = `⚠️ ${errorText}`;
+  container.appendChild(div);
+}
+
+export function renderMessages() {
+  const container = document.getElementById('chat-container');
+  const empty = document.getElementById('empty-state');
+
+  if (state.messages.length === 0) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  container.classList.remove('hidden');
+  container.innerHTML = '';
+
+  for (const msg of state.messages) {
+    container.appendChild(createMessageEl(msg));
+  }
+
+  if (state.isGenerating) {
+    showTypingIndicator();
+  }
+
+  if (state.error) {
+    showChatError(state.error);
+  }
+
+  container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+}
+
+// Keep old name as alias for progressive display
+export function startProgressiveDisplay(msg) {
+  updateMessageContent(msg);
 }
 
 export function showInputError(msg) {
@@ -207,9 +270,9 @@ export function renderFilePreview() {
   const preview = document.getElementById('file-preview');
   if (state.files.length === 0) { preview.classList.add('hidden'); return; }
   preview.innerHTML = state.files.map((f, i) => `
-    <div class="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded bg-black/10 border text-xs">
-      <span class="truncate max-w-[120px] pointer-events-none">${escHtml(f.name)}</span>
-      <button class="hover:text-red-400 p-0.5" data-idx="${i}">✕</button>
+    <div class="file-preview-item">
+      <span class="file-name">${escHtml(f.name)}</span>
+      <button class="file-remove-btn" data-idx="${i}">✕</button>
     </div>
   `).join('');
   preview.classList.remove('hidden');
@@ -239,21 +302,16 @@ export function toggleModelMenu() {
     MODEL_OPTIONS.forEach(m => {
       const isSelected = m.model === state.currentModel.model;
       const btn = document.createElement('button');
-      btn.className = 'flex w-full items-center px-3 py-2 rounded-md border-0 text-sm cursor-pointer';
-      btn.style.color = 'var(--text)';
-      btn.style.background = isSelected ? 'var(--accent-light)' : 'transparent';
-      btn.onmouseover = function() { if (!isSelected) this.style.background = 'var(--hover-bg)'; };
-      btn.onmouseout = function() { this.style.background = isSelected ? 'var(--accent-light)' : 'transparent'; };
-      btn.onclick = function(e) { 
-        e.stopPropagation(); 
-        selectModel(m.model); 
+      btn.className = `dropdown-item${isSelected ? ' active' : ''}`;
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        selectModel(m.model);
       };
       const label = document.createElement('span');
-      label.className = 'font-medium';
+      label.className = 'dropdown-label';
       label.textContent = m.label;
       const provider = document.createElement('span');
-      provider.className = 'text-[0.7rem] ml-auto';
-      provider.style.color = 'var(--muted)';
+      provider.className = 'dropdown-meta';
       provider.textContent = m.provider;
       if (isSelected) {
         const check = document.createElement('span');
@@ -294,13 +352,14 @@ export function handleInputKeydown(e) {
   }
 }
 
-// Ensure marked is setup once UI loads
+// Setup marked
 if (typeof marked !== 'undefined') {
   marked.setOptions({
     gfm: true, breaks: false,
     highlight(code, lang) {
-      if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
-      return hljs.highlightAuto(code).value;
+      if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
+      if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
+      return code;
     },
   });
 }
