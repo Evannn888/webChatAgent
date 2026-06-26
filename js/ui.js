@@ -390,6 +390,7 @@ export function confirmDeleteSession() {
       cancelBtn.removeEventListener('click', onCancel);
       deleteBtn.removeEventListener('click', onDelete);
       modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeydown);
     };
 
     const onCancel = () => { cleanup(); resolve(false); };
@@ -397,9 +398,13 @@ export function confirmDeleteSession() {
     const onBackdrop = (e) => {
       if (e.target === modal) { cleanup(); resolve(false); }
     };
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') { cleanup(); resolve(false); }
+    };
 
     cancelBtn.addEventListener('click', onCancel);
     deleteBtn.addEventListener('click', onDelete);
     modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeydown);
   });
 }
