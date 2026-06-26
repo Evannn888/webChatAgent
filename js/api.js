@@ -119,7 +119,9 @@ export function parseMessage(msg) {
 }
 
 export async function generateSessionTitle(prompt) {
-  if (!state.currentSessionId || !state.currentModel || !prompt) return;
+  const sessionId = state.currentSessionId;
+  const model = state.currentModel;
+  if (!sessionId || !model || !prompt) return;
 
   try {
     const sysPrompt = "You are a helpful assistant. Summarize the following message into a short chat session title (max 5 words). Do not include quotes or punctuation in the title. Return ONLY the title text.";
@@ -127,13 +129,12 @@ export async function generateSessionTitle(prompt) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        provider: state.currentModel.provider,
-        model: state.currentModel.model,
+        provider: model.provider,
+        model: model.model,
         messages: [
           { role: 'system', content: sysPrompt },
           { role: 'user', content: prompt }
         ]
-        // Omit sessionId so this meta-request isn't saved to the DB
       })
     });
 
@@ -143,10 +144,12 @@ export async function generateSessionTitle(prompt) {
     const decoder = new TextDecoder();
     let title = '';
     let buffer = '';
+
     while (true) {
       const { done, value } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true });
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+
       const events = buffer.split(/\r?\n\r?\n/);
       buffer = events.pop();
       for (const ev of events) {
@@ -158,23 +161,23 @@ export async function generateSessionTitle(prompt) {
           if (line.startsWith('data: ')) evData = line.slice(6);
         }
         if (evType === 'text' && evData) {
-          title += JSON.parse(evData);
+          try { title += JSON.parse(evData); } catch (e) { /* ignore partial JSON */ }
         }
       }
     }
 
     title = title.replace(/["']/g, '').trim();
-    if (!title) return;
+    if (!title) title = 'New Chat'; // Fallback if LLM returns empty
 
     // Save to DB
-    await fetch(`/api/sessions/${state.currentSessionId}`, {
+    await fetch(`/api/sessions/${sessionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title })
     });
 
-    // Update local state
-    const session = state.sessions.find(s => s.id === state.currentSessionId);
+    // Update local state if the session still exists in memory
+    const session = state.sessions.find(s => s.id === sessionId);
     if (session) {
       session.title = title;
       renderSessions();
