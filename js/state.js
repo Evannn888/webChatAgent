@@ -1,4 +1,4 @@
-import { MODEL_OPTIONS } from './config.js?v=2';
+import { MODEL_OPTIONS } from './config.js';
 
 export const state = {
   user: null, 

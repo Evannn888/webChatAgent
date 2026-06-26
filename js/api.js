@@ -1,7 +1,7 @@
-import { state, nextId } from './state.js?v=2';
-import { MODEL_OPTIONS } from './config.js?v=2';
-import { renderAuth, renderSessions, renderMessages, syncGenerating } from './ui.js?v=2';
-import { stopGenerating, clearChat } from './chat.js?v=2';
+import { state, nextId } from './state.js';
+import { MODEL_OPTIONS } from './config.js';
+import { renderAuth, renderSessions, renderMessages, syncGenerating } from './ui.js';
+import { stopGenerating, clearChat } from './chat.js';
 
 export async function checkAuth() {
   try {
