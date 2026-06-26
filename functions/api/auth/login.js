@@ -69,7 +69,8 @@ export async function onRequestPost(context) {
       },
     });
   } catch (error) {
-    return Response.json({ error: error.message, stack: error.stack }, { status: 500 });
+    console.error('Dev login error:', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

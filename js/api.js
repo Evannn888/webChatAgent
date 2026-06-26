@@ -1,7 +1,6 @@
 import { state, nextId } from './state.js';
 import { MODEL_OPTIONS } from './config.js';
 import { renderAuth, renderSessions, renderMessages, syncGenerating } from './ui.js';
-import { stopGenerating, clearChat } from './chat.js';
 
 export async function checkAuth() {
   try {
@@ -52,6 +51,9 @@ export async function loadSessions() {
 }
 
 export async function loadSession(id) {
+  // Lazy-import chat.js to avoid circular dependency — api.js is data layer,
+  // chat.js is interaction layer. The old direct import caused tight coupling.
+  const { stopGenerating } = await import('./chat.js');
   stopGenerating();
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
@@ -84,15 +86,21 @@ export async function deleteSession(id, event) {
   try {
     await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
     state.sessions = state.sessions.filter(s => s.id !== id);
-    if (state.currentSessionId === id) clearChat(); 
-    else renderSessions();
+    if (state.currentSessionId === id) {
+      // Instead of importing clearChat, inline the state reset here.
+      // This keeps api.js (data layer) independent of chat.js (interaction layer).
+      state.currentSessionId = null;
+      localStorage.removeItem('currentSessionId');
+      state.messages = []; state.error = null; state.files = [];
+      syncGenerating(false);
+      renderMessages();
+      renderSessions();
+    } else {
+      renderSessions();
+    }
   } catch (err) { 
     console.error('Failed to delete session:', err); 
   }
-}
-
-export async function generateSessionTitle(prompt) {
-  // Can be implemented to call an LLM for title generation
 }
 
 export function parseMessage(msg) {

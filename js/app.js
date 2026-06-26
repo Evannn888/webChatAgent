@@ -9,26 +9,44 @@ import { handleFileSelect, initDragDrop } from './files.js';
 import { state } from './state.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  window.toggleSidebar = toggleSidebar;
-  window.toggleModelMenu = toggleModelMenu;
-  window.clearChat = clearChat;
-  window.toggleTheme = toggleTheme;
-  window.openSettings = openSettings;
-  window.handleFileSelect = handleFileSelect;
-  window.adjustHeight = adjustHeight;
-  window.handleInputKeydown = handleInputKeydown;
-  window.handleSend = handleSend;
-  window.stopGenerating = stopGenerating;
-  window.closeSettingsModal = closeSettingsModal;
+  // These remain on window because settings.js renders onclick="saveKey(...)" / onclick="deleteKey(...)"
+  // dynamically in innerHTML. They can be removed once settings.js uses event delegation too.
   window.saveKey = saveKey;
   window.deleteKey = deleteKey;
 
-  // Close sidebar on backdrop tap (mobile)
+  // Header buttons
+  document.getElementById('sidebar-toggle').addEventListener('click', () => toggleSidebar());
+  document.getElementById('model-menu-btn').addEventListener('click', () => toggleModelMenu());
+  document.getElementById('new-chat-btn').addEventListener('click', () => clearChat());
+  document.getElementById('theme-btn').addEventListener('click', () => toggleTheme());
+  document.getElementById('settings-btn').addEventListener('click', () => openSettings());
+
+  // Sidebar
+  document.getElementById('sidebar-new-chat').addEventListener('click', () => clearChat());
   const backdropEl = document.getElementById('sidebar-backdrop');
   if (backdropEl) {
     backdropEl.addEventListener('click', () => toggleSidebar());
   }
 
+  // Input area
+  document.getElementById('attach-btn').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+  document.getElementById('file-input').addEventListener('change', (e) => handleFileSelect(e));
+  const msgInput = document.getElementById('msg-input');
+  msgInput.addEventListener('input', () => adjustHeight());
+  msgInput.addEventListener('keydown', (e) => handleInputKeydown(e));
+
+  // Send / Stop
+  document.getElementById('send-btn').addEventListener('click', () => handleSend());
+  document.getElementById('stop-btn').addEventListener('click', () => stopGenerating());
+
+  // Settings modal — close on backdrop click
+  document.getElementById('settings-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeSettingsModal();
+  });
+
+  // Global click handlers
   document.addEventListener('click', (e) => {
     const dd = document.getElementById('model-dropdown');
     if (dd && !dd.classList.contains('hidden')) {
@@ -62,11 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Global keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.id?.startsWith('key-')) saveKey(e.target.id.replace('key-', ''));
     if (e.key === 'Escape') { closeSettingsModal(); closeModelMenu(); }
   });
   
+  // Theme persistence
   if (localStorage.getItem('theme') === 'light') {
     document.documentElement.classList.remove('dark');
     const tb = document.getElementById('theme-btn');

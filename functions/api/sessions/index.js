@@ -5,16 +5,22 @@ export async function onRequestGet(context) {
   }
 
   try {
+    const url = new URL(context.request.url);
+    const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 100);
+    const offset = Math.max(parseInt(url.searchParams.get('offset')) || 0, 0);
+
     const { results } = await context.env.DB.prepare(`
       SELECT id, title, model_id, created_at, updated_at 
       FROM session 
       WHERE user_id = ? 
       ORDER BY updated_at DESC
-    `).bind(user.sub).all();
+      LIMIT ? OFFSET ?
+    `).bind(user.sub, limit, offset).all();
 
-    return Response.json({ sessions: results });
+    return Response.json({ sessions: results, limit, offset });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error('Failed to list sessions:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -37,6 +43,7 @@ export async function onRequestPost(context) {
 
     return Response.json({ session: { id: sessionId, title, model_id: model } });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error('Failed to create session:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

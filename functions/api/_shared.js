@@ -114,7 +114,7 @@ export async function decrypt(payload, keyHex) {
 function hexToBytes(hex) {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   }
   return bytes;
 }
@@ -144,7 +144,8 @@ function b64urlFromBuffer(buf) {
 }
 
 function b64urlToBuffer(str) {
-  const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  let padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (padded.length % 4) padded += '=';
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

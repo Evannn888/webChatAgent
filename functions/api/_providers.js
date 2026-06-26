@@ -305,7 +305,7 @@ async function* parseSSE(body, extractContent) {
       const { done, value } = await reader.read();
       if (value) {
         buffer += decoder.decode(value, { stream: !done });
-        const lines = buffer.split('\n');
+        const lines = buffer.split('\n').map(l => l.replace(/\r$/, ''));
         buffer = lines.pop() ?? '';
         if (buffer.length > 1024 * 1024) throw new Error('SSE chunk too large, possible malformed stream');
 

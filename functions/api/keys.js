@@ -67,12 +67,12 @@ export async function onRequestPost(context) {
   if (existing) {
     await context.env.DB.prepare(
       'UPDATE api_key SET key = ?, updatedAt = ? WHERE id = ?',
-    ).bind(encrypted, Date.now(), existing.id).run();
+    ).bind(encrypted, new Date().toISOString(), existing.id).run();
   } else {
     const id = crypto.randomUUID().replace(/-/g, '');
     await context.env.DB.prepare(
       'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(id, user.sub, provider, encrypted, Date.now(), Date.now()).run();
+    ).bind(id, user.sub, provider, encrypted, new Date().toISOString(), new Date().toISOString()).run();
   }
 
   return Response.json({ success: true });

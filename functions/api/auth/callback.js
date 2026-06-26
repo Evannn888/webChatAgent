@@ -74,6 +74,7 @@ export async function onRequestGet(context) {
       },
     });
   } catch (err) {
-    return new Response('Server Error during callback: ' + err.message + '\n\nStack:\n' + err.stack, { status: 500 });
+    console.error('OAuth callback error:', err);
+    return new Response('Internal server error during authentication', { status: 500 });
   }
 }

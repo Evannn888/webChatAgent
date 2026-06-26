@@ -179,6 +179,11 @@ export function updateMessageContent(msg) {
   });
 }
 
+export function cancelPendingRender(msg) {
+  if (msg._renderTimer) { clearTimeout(msg._renderTimer); msg._renderTimer = null; }
+  msg._renderFrameRequested = false;
+}
+
 export function showTypingIndicator() {
   removeTypingIndicator();
   const container = document.getElementById('chat-container');

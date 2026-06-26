@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
 
   <link rel="stylesheet" href="/css/style.css">
@@ -23,14 +23,14 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <button onclick="toggleSidebar()" class="icon-btn" title="Toggle Sidebar">☰</button>
+        <button id="sidebar-toggle" class="icon-btn" title="Toggle Sidebar">☰</button>
         <div class="logo-mark">W</div>
         <span class="logo-text">WebChat</span>
       </div>
 
       <!-- Model Selector -->
       <div class="model-selector">
-        <button onclick="toggleModelMenu()" class="model-btn">
+        <button id="model-menu-btn" class="model-btn">
           <span id="model-label" class="model-label">GPT-5.5</span>
           <span class="model-arrow">▼</span>
         </button>
@@ -39,9 +39,9 @@
       </div>
 
       <div class="header-right">
-        <button onclick="clearChat()" class="icon-btn" title="New Chat">➕</button>
-        <button onclick="toggleTheme()" class="icon-btn" title="Toggle theme" id="theme-btn">🌙</button>
-        <button onclick="openSettings()" class="icon-btn" title="Settings">⚙</button>
+        <button id="new-chat-btn" class="icon-btn" title="New Chat">➕</button>
+        <button class="icon-btn" title="Toggle theme" id="theme-btn">🌙</button>
+        <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
         <div id="auth-area" class="auth-area"></div>
       </div>
     </header>
@@ -53,7 +53,7 @@
       <!-- Sidebar -->
       <aside id="sidebar">
         <div class="sidebar-header">
-          <button onclick="clearChat()" class="btn-primary full-width">+ New Chat</button>
+          <button id="sidebar-new-chat" class="btn-primary full-width">+ New Chat</button>
         </div>
         <div id="session-list" class="session-list"></div>
       </aside>
@@ -76,15 +76,14 @@
           <div id="input-error" class="input-error hidden"></div>
           <div id="file-preview" class="file-preview hidden"></div>
           <div id="input-area" class="input-box">
-            <button onclick="document.getElementById('file-input').click()" class="icon-btn" title="Attach files">+</button>
-            <input type="file" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden" onchange="handleFileSelect(event)">
+            <button id="attach-btn" class="icon-btn" title="Attach files">+</button>
+            <input type="file" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden">
             <textarea id="msg-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
-              class="msg-textarea"
-              oninput="adjustHeight()" onkeydown="handleInputKeydown(event)"></textarea>
+              class="msg-textarea"></textarea>
             <!-- Send button -->
-            <button id="send-btn" onclick="handleSend()" disabled class="send-btn" title="Send">↑</button>
+            <button id="send-btn" disabled class="send-btn" title="Send">↑</button>
             <!-- Stop button -->
-            <button id="stop-btn" onclick="stopGenerating()" class="stop-btn hidden" title="Stop">■</button>
+            <button id="stop-btn" class="stop-btn hidden" title="Stop">■</button>
           </div>
         </div>
       </div>
@@ -92,7 +91,7 @@
   </div>
 
   <!-- Settings Modal -->
-  <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettingsModal()">
+  <div id="settings-modal" class="modal-overlay hidden">
     <div class="modal-panel">
       <h2 class="modal-title">API Keys</h2>
       <div id="settings-alert"></div>

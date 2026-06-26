@@ -66,8 +66,11 @@ export async function deleteKey(id) {
   } catch { showSettingsAlert('error', 'Failed to delete key'); }
 }
 
+let alertTimer = null;
+
 export function showSettingsAlert(type, text) {
   const cls = type === 'success' ? 'alert alert-success' : 'alert alert-error';
   document.getElementById('settings-alert').innerHTML = `<div class="${cls}">${type === 'success' ? '✓' : '⚠️'} ${escHtml(text)}</div>`;
-  setTimeout(() => { document.getElementById('settings-alert').innerHTML = ''; }, 4000);
+  if (alertTimer) clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => { document.getElementById('settings-alert').innerHTML = ''; alertTimer = null; }, 4000);
 }
