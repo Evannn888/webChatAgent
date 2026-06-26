@@ -51,10 +51,6 @@ export async function loadSessions() {
 }
 
 export async function loadSession(id) {
-  // Lazy-import chat.js to avoid circular dependency — api.js is data layer,
-  // chat.js is interaction layer. The old direct import caused tight coupling.
-  const { stopGenerating } = await import('./chat.js');
-  stopGenerating();
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
   state.messages = []; 
@@ -80,26 +76,15 @@ export async function loadSession(id) {
   }
 }
 
-export async function deleteSession(id, event) {
-  event.stopPropagation();
-  if (!confirm('Are you sure you want to delete this chat?')) return;
+export async function deleteSession(id) {
   try {
     await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
     state.sessions = state.sessions.filter(s => s.id !== id);
-    if (state.currentSessionId === id) {
-      // Instead of importing clearChat, inline the state reset here.
-      // This keeps api.js (data layer) independent of chat.js (interaction layer).
-      state.currentSessionId = null;
-      localStorage.removeItem('currentSessionId');
-      state.messages = []; state.error = null; state.files = [];
-      syncGenerating(false);
-      renderMessages();
-      renderSessions();
-    } else {
-      renderSessions();
-    }
+    renderSessions();
+    return true;
   } catch (err) { 
     console.error('Failed to delete session:', err); 
+    return false;
   }
 }
 
@@ -116,6 +101,43 @@ export function parseMessage(msg) {
     msg.displayContent = textPart || `[Sent ${numFiles} file(s)]`;
   }
   return msg;
+}
+
+export async function* parseSSE(reader) {
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const emit = function* (str, isLast) {
+    const events = str.split(/\r?\n\r?\n/);
+    if (!isLast) buffer = events.pop();
+    else buffer = '';
+    
+    for (const ev of events) {
+      if (!ev.trim()) continue;
+      const lines = ev.split(/\r?\n/);
+      let evType = '', evData = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) evType = line.slice(7).trim();
+        if (line.startsWith('data: ')) evData = line.slice(6);
+      }
+      if (evType && evData) {
+        try { yield { type: evType, data: JSON.parse(evData) }; } catch (e) {}
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      yield* emit(buffer, false);
+    }
+    if (done) {
+      buffer += decoder.decode();
+      if (buffer) yield* emit(buffer, true);
+      break;
+    }
+  }
 }
 
 export async function generateSessionTitle(prompt) {
@@ -140,30 +162,9 @@ export async function generateSessionTitle(prompt) {
 
     if (!res.ok) return;
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
     let title = '';
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (value) buffer += decoder.decode(value, { stream: true });
-      if (done) break;
-
-      const events = buffer.split(/\r?\n\r?\n/);
-      buffer = events.pop();
-      for (const ev of events) {
-        if (!ev.trim()) continue;
-        const lines = ev.split(/\r?\n/);
-        let evType = '', evData = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) evType = line.slice(7).trim();
-          if (line.startsWith('data: ')) evData = line.slice(6);
-        }
-        if (evType === 'text' && evData) {
-          try { title += JSON.parse(evData); } catch (e) { /* ignore partial JSON */ }
-        }
-      }
+    for await (const chunk of parseSSE(res.body.getReader())) {
+      if (chunk.type === 'text') title += chunk.data;
     }
 
     title = title.replace(/["']/g, '').trim();

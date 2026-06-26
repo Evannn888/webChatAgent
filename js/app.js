@@ -2,7 +2,7 @@ import { checkAuth, loadSession, deleteSession } from './api.js';
 import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
-  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
+  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn, confirmDeleteSession 
 } from './ui.js';
 import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Global click handlers
-  document.addEventListener('click', (e) => {
+  document.addEventListener('click', async (e) => {
     const dd = document.getElementById('model-dropdown');
     if (dd && !dd.classList.contains('hidden')) {
       const wrapper = dd.parentElement;
@@ -59,11 +59,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sessionList && sessionList.contains(e.target)) {
       const delBtn = e.target.closest('.session-del');
       if (delBtn) {
-        deleteSession(delBtn.getAttribute('data-id'), e);
+        e.stopPropagation();
+        
+        const confirmed = await confirmDeleteSession();
+        if (!confirmed) return;
+        
+        const id = delBtn.getAttribute('data-id');
+        const deleted = await deleteSession(id);
+        if (deleted && state.currentSessionId === id) {
+          clearChat();
+        }
         return;
       }
       const item = e.target.closest('.session-item');
       if (item) {
+        stopGenerating();
         loadSession(item.getAttribute('data-id'));
       }
     }

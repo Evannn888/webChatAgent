@@ -1,6 +1,6 @@
 import { state, nextId, activeStream, setActiveStream } from './state.js';
 import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
-import { generateSessionTitle } from './api.js';
+import { generateSessionTitle, parseSSE } from './api.js';
 
 /* ── Message Construction ─────────────────────────────────── */
 
@@ -25,32 +25,14 @@ function buildUserMessage(text, files) {
 /* ── SSE Stream Parsing ───────────────────────────────────── */
 
 async function parseSSEStream(reader, assistantMsg) {
-  const decoder = new TextDecoder();
-  let sseBuffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    sseBuffer += decoder.decode(value, { stream: true });
-    const sseEvents = sseBuffer.split(/\r?\n\r?\n/);
-    sseBuffer = sseEvents.pop();
-    if (sseBuffer.length > 1024 * 1024) throw new Error('Stream buffer exceeded safety limit');
-    for (const eventStr of sseEvents) {
-      if (!eventStr.trim()) continue;
-      const lines = eventStr.split(/\r?\n/);
-      let eventType = '', eventData = '';
-      for (const line of lines) {
-        if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-        if (line.startsWith('data: ')) eventData = line.slice(6);
-      }
-      if (eventType === 'text' && eventData) {
-        assistantMsg.content += JSON.parse(eventData);
-        removeTypingIndicator();
-        updateMessageContent(assistantMsg);
-      } else if (eventType === 'usage' && eventData) {
-        assistantMsg.usage = JSON.parse(eventData);
-        injectUsageBadge(assistantMsg);
-      }
+  for await (const chunk of parseSSE(reader)) {
+    if (chunk.type === 'text') {
+      assistantMsg.content += chunk.data;
+      removeTypingIndicator();
+      updateMessageContent(assistantMsg);
+    } else if (chunk.type === 'usage') {
+      assistantMsg.usage = chunk.data;
+      injectUsageBadge(assistantMsg);
     }
   }
 }

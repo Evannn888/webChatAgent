@@ -338,14 +338,12 @@ button { font-family: inherit; }
 .session-del:hover { color: var(--error-text) !important; }
 
 /* ── Primary Button ──────────────────────────────────────── */
-.btn-primary {
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
   border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
@@ -354,8 +352,25 @@ button { font-family: inherit; }
   transition: background 0.15s, opacity 0.15s;
   flex-shrink: 0;
 }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-primary.full-width { width: 100%; }
+
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text);
+}
+.btn-secondary:hover { background: var(--border); }
+
+.btn-danger-filled {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
+}
+.btn-danger-filled:hover { opacity: 0.8; }
 
 /* ── Text Button ─────────────────────────────────────────── */
 .btn-text {
@@ -666,6 +681,10 @@ button { font-family: inherit; }
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
+}
+.modal-panel-small {
+  max-width: 320px;
+  text-align: center;
 }
 .modal-title {
   font-size: 1.2rem;

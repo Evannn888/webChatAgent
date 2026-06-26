@@ -67,7 +67,7 @@ export function syncGenerating(v) {
 export function renderAuth() {
   const area = document.getElementById('auth-area');
   if (!state.user) {
-    area.innerHTML = '<button id="btn-login" class="btn-primary">Sign in</button>';
+    area.innerHTML = '<button id="btn-login" class="btn btn-primary">Sign in</button>';
     document.getElementById('btn-login').onclick = login;
   } else {
     area.innerHTML = `<div class="auth-user">
@@ -366,5 +366,40 @@ if (typeof marked !== 'undefined') {
       if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
       return code;
     },
+  });
+}
+
+/* ── Modals ───────────────────────────────────────────────── */
+
+export function confirmDeleteSession() {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirm-modal');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    const deleteBtn = document.getElementById('confirm-delete-btn');
+    
+    if (!modal || !cancelBtn || !deleteBtn) {
+      // Fallback to native confirm if modal isn't in DOM
+      resolve(confirm('Are you sure you want to delete this chat?'));
+      return;
+    }
+
+    modal.classList.remove('hidden');
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      cancelBtn.removeEventListener('click', onCancel);
+      deleteBtn.removeEventListener('click', onDelete);
+      modal.removeEventListener('click', onBackdrop);
+    };
+
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onDelete = () => { cleanup(); resolve(true); };
+    const onBackdrop = (e) => {
+      if (e.target === modal) { cleanup(); resolve(false); }
+    };
+
+    cancelBtn.addEventListener('click', onCancel);
+    deleteBtn.addEventListener('click', onDelete);
+    modal.addEventListener('click', onBackdrop);
   });
 }
