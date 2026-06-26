@@ -18,7 +18,8 @@ export async function onRequestGet(context) {
 
     return Response.json({ messages: results[1].results });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error('Session GET error:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -41,7 +42,8 @@ export async function onRequestPatch(context) {
 
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error('Session PATCH error:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -61,6 +63,7 @@ export async function onRequestDelete(context) {
 
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    console.error('Session DELETE error:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -117,3 +117,69 @@ export function parseMessage(msg) {
   }
   return msg;
 }
+
+export async function generateSessionTitle(prompt) {
+  if (!state.currentSessionId || !state.currentModel || !prompt) return;
+
+  try {
+    const sysPrompt = "You are a helpful assistant. Summarize the following message into a short chat session title (max 5 words). Do not include quotes or punctuation in the title. Return ONLY the title text.";
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: state.currentModel.provider,
+        model: state.currentModel.model,
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: prompt }
+        ]
+        // Omit sessionId so this meta-request isn't saved to the DB
+      })
+    });
+
+    if (!res.ok) return;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let title = '';
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop();
+      for (const ev of events) {
+        if (!ev.trim()) continue;
+        const lines = ev.split(/\r?\n/);
+        let evType = '', evData = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) evType = line.slice(7).trim();
+          if (line.startsWith('data: ')) evData = line.slice(6);
+        }
+        if (evType === 'text' && evData) {
+          title += JSON.parse(evData);
+        }
+      }
+    }
+
+    title = title.replace(/["']/g, '').trim();
+    if (!title) return;
+
+    // Save to DB
+    await fetch(`/api/sessions/${state.currentSessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+
+    // Update local state
+    const session = state.sessions.find(s => s.id === state.currentSessionId);
+    if (session) {
+      session.title = title;
+      renderSessions();
+    }
+  } catch (err) {
+    console.error('Failed to generate session title:', err);
+  }
+}

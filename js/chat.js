@@ -1,5 +1,6 @@
 import { state, nextId, activeStream, setActiveStream } from './state.js';
 import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
+import { generateSessionTitle } from './api.js';
 
 /* ── Message Construction ─────────────────────────────────── */
 
@@ -70,6 +71,14 @@ function finalizeMessage(assistantMsg, input) {
     if (cd) cd.innerHTML = '<span class="placeholder-text">…</span>';
   }
   input.focus();
+
+  // If this was the first message and it succeeded, generate a title
+  const isFirstMessage = state.messages.filter(m => m.role === 'user').length === 1;
+  if (isFirstMessage && state.currentSessionId && assistantMsg.content && !state.error) {
+    const userMsg = state.messages.find(m => m.role === 'user');
+    const prompt = userMsg?.displayContent || 'Chat with files';
+    generateSessionTitle(prompt);
+  }
 }
 
 /* ── Main Send Handler ────────────────────────────────────── */
