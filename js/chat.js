@@ -1,6 +1,6 @@
-import { state, nextId, activeStream, setActiveStream } from './state.js';
-import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
-import { generateSessionTitle } from './api.js';
+import { state, nextId, activeStream, setActiveStream } from './state.js?v=2';
+import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js?v=2';
+import { generateSessionTitle } from './api.js?v=2';
 
 export async function handleSend() {
   if (state.isGenerating) return;

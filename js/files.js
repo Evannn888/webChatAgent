@@ -1,5 +1,5 @@
-import { state } from './state.js';
-import { renderFilePreview, updateSendBtn, showInputError } from './ui.js';
+import { state } from './state.js?v=2';
+import { renderFilePreview, updateSendBtn, showInputError } from './ui.js?v=2';
 
 export async function handleFileSelect(event) {
   const fileInput = document.getElementById('file-input');

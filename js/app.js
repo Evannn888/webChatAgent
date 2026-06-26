@@ -1,12 +1,12 @@
-import { checkAuth, loadSession, deleteSession } from './api.js';
-import { handleSend, clearChat, stopGenerating } from './chat.js';
+import { checkAuth, loadSession, deleteSession } from './api.js?v=2';
+import { handleSend, clearChat, stopGenerating } from './chat.js?v=2';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
   handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
-} from './ui.js';
-import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
-import { handleFileSelect, initDragDrop } from './files.js';
-import { state } from './state.js';
+} from './ui.js?v=2';
+import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js?v=2';
+import { handleFileSelect, initDragDrop } from './files.js?v=2';
+import { state } from './state.js?v=2';
 
 document.addEventListener('DOMContentLoaded', () => {
   window.toggleSidebar = toggleSidebar;

@@ -1,6 +1,6 @@
-import { state } from './state.js';
-import { PROVIDERS } from './config.js';
-import { escHtml } from './ui.js';
+import { state } from './state.js?v=2';
+import { PROVIDERS } from './config.js?v=2';
+import { escHtml } from './ui.js?v=2';
 
 let savedKeys = [];
 

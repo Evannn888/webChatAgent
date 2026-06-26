@@ -1,6 +1,6 @@
-import { state } from './state.js';
-import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js';
-import { login, logout } from './api.js';
+import { state } from './state.js?v=2';
+import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js?v=2';
+import { login, logout } from './api.js?v=2';
 
 export function escHtml(str) {
   const div = document.createElement('div');
