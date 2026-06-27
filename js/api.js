@@ -193,6 +193,9 @@ export async function generateSessionTitle(prompt) {
       if (chunk.type === 'text') title += chunk.data;
     }
 
+    // Remove <think>...</think> blocks if the LLM outputted them (even if unclosed)
+    title = title.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
+
     title = title.replace(/["']/g, '').trim();
     if (!title) title = 'New Chat'; // Fallback if LLM returns empty
 
