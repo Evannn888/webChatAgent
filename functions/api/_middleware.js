@@ -19,10 +19,16 @@ export async function onRequest(context) {
   if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
     const origin = context.request.headers.get('Origin');
     const siteUrl = context.env.SITE_URL;
-    if (siteUrl && origin) {
-      const expected = new URL(siteUrl).origin;
-      if (origin !== expected) {
-        return Response.json({ error: 'Forbidden: origin mismatch' }, { status: 403 });
+    if (siteUrl) {
+      if (origin) {
+        const expected = new URL(siteUrl).origin;
+        if (origin !== expected) {
+          return Response.json({ error: 'Forbidden: origin mismatch' }, { status: 403 });
+        }
+      } else {
+        if (!context.request.headers.has('X-Requested-With')) {
+          return Response.json({ error: 'Forbidden: missing Origin or X-Requested-With header' }, { status: 403 });
+        }
       }
     }
   }

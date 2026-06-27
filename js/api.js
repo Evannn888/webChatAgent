@@ -171,11 +171,12 @@ export async function generateSessionTitle(prompt) {
     if (!title) title = 'New Chat'; // Fallback if LLM returns empty
 
     // Save to DB
-    await fetch(`/api/sessions/${sessionId}`, {
+    const patchRes = await fetch(`/api/sessions/${sessionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title })
     });
+    if (!patchRes.ok) throw new Error('Failed to update title');
 
     // Update local state if the session still exists in memory
     const session = state.sessions.find(s => s.id === sessionId);

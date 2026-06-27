@@ -48,16 +48,17 @@ export async function onRequestPost(context) {
     const id = 'dev_' + await hashString(email);
 
     // Upsert user in D1
-    await context.env.DB.prepare(`
+    const result = await context.env.DB.prepare(`
       INSERT INTO user (id, email, name, image)
       VALUES (?, ?, ?, NULL)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name
-    `).bind(id, email, name || email.split('@')[0], ).run();
+      RETURNING image
+    `).bind(id, email, name || email.split('@')[0]).first();
 
     // Issue JWT session
     const jwt = await signJWT(
-      { sub: id, email, name: name || email.split('@')[0], image: null },
+      { sub: id, email, name: name || email.split('@')[0], image: result?.image || null },
       context.env.JWT_SECRET,
     );
 

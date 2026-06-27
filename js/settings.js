@@ -37,9 +37,9 @@ export function renderSettingsForm() {
       <label class="form-label">${p.label}</label>
       <div class="form-row">
         <input class="form-input" type="password" id="key-${p.id}" placeholder="${saved ? saved.keyMasked : p.placeholder}">
-        <button class="btn btn-primary" onclick="saveKey('${p.id}')" style="flex-shrink:0;">Save</button>
+        <button class="btn btn-primary" data-save-key="${p.id}" style="flex-shrink:0;">Save</button>
       </div>
-      ${saved ? `<div class="form-hint"><span>✓ Key saved</span><button class="btn-text btn-danger" onclick="deleteKey('${saved.id}')">Remove</button></div>` : ''}
+      ${saved ? `<div class="form-hint"><span>✓ Key saved</span><button class="btn-text btn-danger" data-delete-key="${saved.id}">Remove</button></div>` : ''}
     </div>`;
   }).join('');
 }

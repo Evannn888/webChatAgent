@@ -2,6 +2,8 @@ import { state } from './state.js';
 import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js';
 import { login, logout } from './api.js';
 
+let _streamingRender = false;
+
 export function escHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -30,7 +32,9 @@ export function injectUsageBadge(msg) {
   el.appendChild(badge);
 }
 
-export function renderMarkdown(text) {
+export function renderMarkdown(text, options = {}) {
+  const prev = _streamingRender;
+  _streamingRender = !!options.isStreaming;
   try {
     let result = '', remaining = text;
     while (remaining.length > 0) {
@@ -49,6 +53,7 @@ export function renderMarkdown(text) {
     }
     return result;
   } catch { return escHtml(text); }
+  finally { _streamingRender = prev; }
 }
 
 export function syncGenerating(v) {
@@ -150,38 +155,65 @@ export function appendMessage(msg) {
   container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
 }
 
-export function updateMessageContent(msg) {
+function scheduleStreamRender(msg) {
+  if (msg._streamRenderTimer) return;
+  msg._streamRenderTimer = setTimeout(() => {
+    msg._streamRenderTimer = null;
+    if (!msg._isStreaming) return;
+    const contentDiv = document.getElementById(`content-${msg.id}`);
+    if (!contentDiv || !contentDiv.isConnected) return;
+    contentDiv.innerHTML = renderMarkdown(msg.content, { isStreaming: true });
+    msg._lastRenderedLength = msg.content.length;
+  }, 200);
+}
+
+export function appendStreamingToken(msg, token) {
+  msg.content = (msg.content || '') + token;
+  msg._isStreaming = true;
+
   const contentDiv = document.getElementById(`content-${msg.id}`);
   if (!contentDiv) return;
 
-  if (msg._renderFrameRequested) return;
+  const placeholder = contentDiv.querySelector('.placeholder-text');
+  if (placeholder) placeholder.remove();
 
-  const now = performance.now();
-  if (msg._lastRenderTime && now - msg._lastRenderTime < 50) {
-    if (!msg._renderTimer) {
-      msg._renderTimer = setTimeout(() => {
-        msg._renderTimer = null;
-        updateMessageContent(msg);
-      }, 50 - (now - msg._lastRenderTime));
-    }
-    return;
+  let existing = contentDiv.querySelector('.stream-text');
+  if (!existing) {
+    existing = document.createElement('span');
+    existing.className = 'stream-text';
+    contentDiv.appendChild(existing);
   }
+  
+  // Display all tokens accumulated since the last markdown render
+  existing.textContent = msg.content.slice(msg._lastRenderedLength || 0);
 
-  msg._renderFrameRequested = true;
-  requestAnimationFrame(() => {
-    msg._renderFrameRequested = false;
-    msg._lastRenderTime = performance.now();
-    if (contentDiv.isConnected && msg.content) {
+  const c = document.getElementById('chat-container');
+  if (c) c.scrollTop = c.scrollHeight;
+
+  scheduleStreamRender(msg);
+}
+
+// Legacy — kept as no-op for compatibility; streaming uses appendStreamingToken
+export function updateMessageContent(msg) {
+  // Streaming is now handled by appendStreamingToken for incremental performance.
+  // If called directly, do a one-shot render.
+  if (!msg._isStreaming && msg.content) {
+    const contentDiv = document.getElementById(`content-${msg.id}`);
+    if (contentDiv && contentDiv.isConnected) {
       contentDiv.innerHTML = renderMarkdown(msg.content);
       const c = document.getElementById('chat-container');
       if (c) c.scrollTop = c.scrollHeight;
     }
-  });
+  }
 }
 
 export function cancelPendingRender(msg) {
-  if (msg._renderTimer) { clearTimeout(msg._renderTimer); msg._renderTimer = null; }
+  if (msg._streamRenderTimer) {
+    clearTimeout(msg._streamRenderTimer);
+    msg._streamRenderTimer = null;
+  }
   msg._renderFrameRequested = false;
+  msg._isStreaming = false;
 }
 
 export function showTypingIndicator() {
@@ -246,10 +278,7 @@ export function renderMessages() {
   container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
 }
 
-// Keep old name as alias for progressive display
-export function startProgressiveDisplay(msg) {
-  updateMessageContent(msg);
-}
+
 
 export function showInputError(msg) {
   const el = document.getElementById('input-error');
@@ -362,49 +391,11 @@ if (typeof marked !== 'undefined') {
   marked.setOptions({
     gfm: true, breaks: false,
     highlight(code, lang) {
+      if (_streamingRender) return escHtml(code);
       if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
       if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
-      return code;
+      return escHtml(code);
     },
   });
 }
 
-/* ── Modals ───────────────────────────────────────────────── */
-
-export function confirmDeleteSession() {
-  return new Promise(resolve => {
-    const modal = document.getElementById('confirm-modal');
-    const cancelBtn = document.getElementById('confirm-cancel-btn');
-    const deleteBtn = document.getElementById('confirm-delete-btn');
-    
-    if (!modal || !cancelBtn || !deleteBtn) {
-      // Fallback to native confirm if modal isn't in DOM
-      resolve(confirm('Are you sure you want to delete this chat?'));
-      return;
-    }
-
-    modal.classList.remove('hidden');
-
-    const cleanup = () => {
-      modal.classList.add('hidden');
-      cancelBtn.removeEventListener('click', onCancel);
-      deleteBtn.removeEventListener('click', onDelete);
-      modal.removeEventListener('click', onBackdrop);
-      document.removeEventListener('keydown', onKeydown);
-    };
-
-    const onCancel = () => { cleanup(); resolve(false); };
-    const onDelete = () => { cleanup(); resolve(true); };
-    const onBackdrop = (e) => {
-      if (e.target === modal) { cleanup(); resolve(false); }
-    };
-    const onKeydown = (e) => {
-      if (e.key === 'Escape') { cleanup(); resolve(false); }
-    };
-
-    cancelBtn.addEventListener('click', onCancel);
-    deleteBtn.addEventListener('click', onDelete);
-    modal.addEventListener('click', onBackdrop);
-    document.addEventListener('keydown', onKeydown);
-  });
-}

@@ -62,6 +62,26 @@
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.4);
 }
 
+/* ── Extended Design Tokens ───────────────────────────────── */
+:root {
+  --glass-bg: 255 255 255;
+  --glass-border: 0 0 0;
+  --glass-blur: 16px;
+  --glass-alpha: 0.65;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark {
+  --glass-bg: 15 15 25;
+  --glass-border: 255 255 255;
+  --glass-alpha: 0.55;
+}
+
 /* ── Base ────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -77,6 +97,24 @@ body {
 button, a { touch-action: manipulation; }
 button { font-family: inherit; }
 .hidden { display: none !important; }
+
+/* ── Glass Panel (static chrome only — never on chat area) ─ */
+.glass-panel {
+  background: hsl(var(--glass-bg) / var(--glass-alpha));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+/* Override border colors on glass-panel elements (specificity beats shorthands) */
+.app-header.glass-panel { border-bottom-color: hsl(var(--glass-border) / 0.08); }
+#sidebar.glass-panel { border-right-color: hsl(var(--glass-border) / 0.08); }
+.input-box.glass-panel { border-color: hsl(var(--glass-border) / 0.08); }
+
+/* ── Streaming text (raw tokens between markdown renders) ── */
+.stream-text {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
@@ -143,6 +181,7 @@ button { font-family: inherit; }
 .logo-text {
   font-weight: 600;
   font-size: 0.95rem;
+  letter-spacing: -0.01em;
 }
 
 /* ── Icon Button ─────────────────────────────────────────── */
@@ -310,9 +349,12 @@ button { font-family: inherit; }
   text-overflow: ellipsis;
   font-size: 0.875rem;
   color: var(--text2);
-  transition: background 0.12s;
+  transition: background 0.12s, transform 0.15s var(--ease-out);
 }
-.session-item:hover { background: var(--surface2); }
+.session-item:hover {
+  background: var(--surface2);
+  transform: translateX(2px);
+}
 .session-item.active {
   background: var(--accent-light);
   color: var(--text);
@@ -357,7 +399,8 @@ button { font-family: inherit; }
   color: #fff;
 }
 .btn-primary:hover { background: var(--accent-hover); }
-.btn-primary.full-width { width: 100%; }
+
+.btn.full-width { width: 100%; }
 
 .btn-secondary {
   background: var(--surface2);
@@ -443,6 +486,16 @@ button { font-family: inherit; }
   flex-direction: column;
   margin-bottom: 16px;
   animation: fadeIn 0.2s ease-out;
+  contain: content;
+}
+/* Off-screen messages skip rendering (huge perf win on long conversations) */
+.chat-container > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px;
+}
+/* Always fully render the last message (streaming target) */
+.chat-container > *:last-child {
+  content-visibility: visible;
 }
 .msg-row.msg-user { align-items: flex-end; }
 .msg-row.msg-assistant { align-items: flex-start; }
@@ -506,11 +559,12 @@ button { font-family: inherit; }
 }
 .placeholder-text { opacity: 0.4; }
 
-/* ── Typing Indicator ────────────────────────────────────── */
+/* ── Typing / Thinking Indicator (shimmer loader) ─────────── */
 .typing-dots {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-left: 2px;
 }
 .typing-dots span {
   display: inline-block;
@@ -518,7 +572,7 @@ button { font-family: inherit; }
   height: 6px;
   border-radius: 50%;
   background: var(--muted);
-  animation: pulseDot 1.4s ease-in-out infinite;
+  animation: shimmerDot 1.4s ease-in-out infinite;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
@@ -619,12 +673,19 @@ button { font-family: inherit; }
   border: 0;
   flex-shrink: 0;
   font-size: 1.1rem;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s, transform 0.2s var(--ease-out);
 }
-.send-btn:hover { background: var(--accent-hover); }
+.send-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: scale(1.08);
+}
+.send-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
 .send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 .stop-btn {
   width: 36px;
@@ -764,7 +825,7 @@ button { font-family: inherit; }
 .md-content ul, .md-content ol { padding-left: 1.5em; margin-bottom: 0.75em; }
 .md-content li { margin-bottom: 0.3em; }
 .md-content a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
-.md-content code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-family: 'JetBrains Mono','Fira Code',monospace; }
+.md-content code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-family: var(--font-mono); }
 .md-content pre { margin: 0.75em 0; border-radius: 10px; overflow: hidden; }
 .md-content pre code { background: none; padding: 0; }
 .md-content blockquote { border-left: 3px solid var(--accent); padding-left: 1em; margin: 0.75em 0; color: var(--text2); }
@@ -806,14 +867,14 @@ button { font-family: inherit; }
   z-index: 10;
 }
 
-/* ── Animations ──────────────────────────────────────────── */
+/* ── Animations (GPU-only: transform + opacity) ──────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes pulseDot {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+@keyframes shimmerDot {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
 }
 
 /* ── Reduced Motion ──────────────────────────────────────── */
@@ -837,4 +898,14 @@ button { font-family: inherit; }
   .btn-text.logout-btn { display: none; }
   .model-btn { padding: 6px 8px; }
   .bubble-user, .bubble-assistant { max-width: 88%; }
+
+  /* Reduce glass blur on mobile GPUs */
+  .glass-panel {
+    --glass-blur: 10px;
+  }
+
+  /* Slightly reduce containment size hint for smaller viewports */
+  .chat-container > * {
+    contain-intrinsic-size: auto 60px;
+  }
 }

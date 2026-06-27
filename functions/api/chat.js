@@ -51,20 +51,26 @@ export async function onRequestPost(context) {
     );
   }
 
-  // Save the user's message if sessionId is provided (with ownership check)
+  // Validate sessionId ownership BEFORE streaming
   if (sessionId) {
+    const session = await context.env.DB.prepare(
+      'SELECT id FROM session WHERE id = ? AND user_id = ?'
+    ).bind(sessionId, user.sub).first();
+
+    if (!session) {
+      return Response.json(
+        { error: 'Forbidden: Session does not exist or belongs to another user' },
+        { status: 403 }
+      );
+    }
+
+    // Now safe to insert user message in background
     const userMsg = messages[messages.length - 1];
     context.waitUntil(
-      (async () => {
-        const session = await context.env.DB.prepare(
-          'SELECT id FROM session WHERE id = ? AND user_id = ?'
-        ).bind(sessionId, user.sub).first();
-        if (!session) return; // sessionId doesn't belong to this user — skip save silently
-        await context.env.DB.batch([
-          context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
-          context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
-        ]);
-      })().catch(err => console.error('Failed to save user message:', err))
+      context.env.DB.batch([
+        context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
+        context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
+      ]).catch(err => console.error('Failed to save user message:', err))
     );
   }
 

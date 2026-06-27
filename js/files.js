@@ -70,7 +70,8 @@ export function initDragDrop() {
     e.preventDefault(); dragCounter++; appEl.classList.add('drop-active');
   });
   appEl.addEventListener('dragleave', e => {
-    e.preventDefault(); dragCounter--;
+    e.preventDefault(); 
+    dragCounter = Math.max(0, dragCounter - 1);
     if (dragCounter === 0) appEl.classList.remove('drop-active');
   });
   appEl.addEventListener('dragover', e => e.preventDefault());

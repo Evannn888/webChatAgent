@@ -2,17 +2,13 @@ import { checkAuth, loadSession, deleteSession } from './api.js';
 import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
-  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn, confirmDeleteSession 
+  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
 } from './ui.js';
 import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
 import { state } from './state.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // These remain on window because settings.js renders onclick="saveKey(...)" / onclick="deleteKey(...)"
-  // dynamically in innerHTML. They can be removed once settings.js uses event delegation too.
-  window.saveKey = saveKey;
-  window.deleteKey = deleteKey;
 
   // Header buttons
   document.getElementById('sidebar-toggle').addEventListener('click', () => toggleSidebar());
@@ -52,6 +48,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dd && !dd.classList.contains('hidden')) {
       const wrapper = dd.parentElement;
       if (!wrapper.contains(e.target)) closeModelMenu();
+    }
+
+    // Settings Event Delegation
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm && settingsForm.contains(e.target)) {
+      const saveBtn = e.target.closest('[data-save-key]');
+      if (saveBtn) {
+        e.stopPropagation();
+        saveKey(saveBtn.getAttribute('data-save-key'));
+        return;
+      }
+      const delBtn = e.target.closest('[data-delete-key]');
+      if (delBtn) {
+        e.stopPropagation();
+        deleteKey(delBtn.getAttribute('data-delete-key'));
+        return;
+      }
     }
 
     // Session List Event Delegation
@@ -106,3 +119,40 @@ document.addEventListener('DOMContentLoaded', () => {
   initDragDrop();
   checkAuth();
 });
+
+export function confirmDeleteSession() {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirm-modal');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    const deleteBtn = document.getElementById('confirm-delete-btn');
+    
+    if (!modal || !cancelBtn || !deleteBtn) {
+      resolve(confirm('Are you sure you want to delete this chat?'));
+      return;
+    }
+
+    modal.classList.remove('hidden');
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      cancelBtn.removeEventListener('click', onCancel);
+      deleteBtn.removeEventListener('click', onDelete);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeydown);
+    };
+
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onDelete = () => { cleanup(); resolve(true); };
+    const onBackdrop = (e) => {
+      if (e.target === modal) { cleanup(); resolve(false); }
+    };
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') { cleanup(); resolve(false); }
+    };
+
+    cancelBtn.addEventListener('click', onCancel);
+    deleteBtn.addEventListener('click', onDelete);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeydown);
+  });
+}

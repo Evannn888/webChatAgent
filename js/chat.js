@@ -1,5 +1,5 @@
 import { state, nextId, activeStream, setActiveStream } from './state.js';
-import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, updateMessageContent, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
+import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, appendStreamingToken, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
 import { generateSessionTitle, parseSSE } from './api.js';
 
 /* ── Message Construction ─────────────────────────────────── */
@@ -27,9 +27,8 @@ function buildUserMessage(text, files) {
 async function parseSSEStream(reader, assistantMsg) {
   for await (const chunk of parseSSE(reader)) {
     if (chunk.type === 'text') {
-      assistantMsg.content += chunk.data;
       removeTypingIndicator();
-      updateMessageContent(assistantMsg);
+      appendStreamingToken(assistantMsg, chunk.data);
     } else if (chunk.type === 'usage') {
       assistantMsg.usage = chunk.data;
       injectUsageBadge(assistantMsg);
@@ -40,6 +39,7 @@ async function parseSSEStream(reader, assistantMsg) {
 /* ── Message Finalization ─────────────────────────────────── */
 
 function finalizeMessage(assistantMsg, input) {
+  assistantMsg._isStreaming = false;
   cancelPendingRender(assistantMsg);
   if (assistantMsg.content && !state.error) {
     assistantMsg.renderedHtml = renderMarkdown(assistantMsg.content);
@@ -95,6 +95,7 @@ export async function handleSend() {
       body: JSON.stringify({
         provider: state.currentModel.provider, model: state.currentModel.model,
         messages: state.messages.filter(m => m.content && m !== assistantMsg)
+          .slice(-50)
           .map(m => ({ role: m.role, content: m.content })),
         sessionId: state.currentSessionId,
       }),
@@ -119,7 +120,6 @@ export async function handleSend() {
 export function stopGenerating() {
   if (activeStream) {
     activeStream.reader.cancel();
-    activeStream.assistantMsg._stopDisplay = true;
     setActiveStream(null);
   }
 }
