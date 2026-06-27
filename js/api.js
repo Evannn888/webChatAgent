@@ -55,6 +55,7 @@ export async function loadSession(id) {
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
   state.messages = []; 
+  document.dispatchEvent(new CustomEvent('renderMessages'));
   document.dispatchEvent(new CustomEvent('syncGenerating', { detail: false }));
   const session = state.sessions.find(s => s.id === id);
   if (session?.model_id) {
