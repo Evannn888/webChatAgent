@@ -322,20 +322,22 @@ button { font-family: inherit; }
   padding: 12px;
   border-bottom: 1px solid var(--border);
 }
-.sidebar-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  top: 56px;
-  background: rgba(0,0,0,0.4);
-  z-index: 199;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.sidebar-backdrop.active {
-  display: block;
-  opacity: 1;
+@media (max-width: 639px) {
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    top: 56px;
+    background: rgba(0,0,0,0.4);
+    z-index: 199;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sidebar-backdrop.active {
+    display: block;
+    opacity: 1;
+  }
 }
 .session-list { flex: 1; overflow-y: auto; }
 .session-empty {
