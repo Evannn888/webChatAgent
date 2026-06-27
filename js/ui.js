@@ -1,8 +1,7 @@
 import { state } from './state.js';
 import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js';
-import { login, logout } from './api.js';
 
-let _streamingRender = false;
+// Removed _streamingRender flag
 
 export function escHtml(str) {
   const div = document.createElement('div');
@@ -32,20 +31,30 @@ export function injectUsageBadge(msg) {
   el.appendChild(badge);
 }
 
+const getMarkedOptions = (isStreaming) => ({
+  gfm: true, breaks: false,
+  highlight(code, lang) {
+    if (isStreaming) return escHtml(code);
+    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
+    if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
+    return escHtml(code);
+  }
+});
+
 export function renderMarkdown(text, options = {}) {
-  const prev = _streamingRender;
-  _streamingRender = !!options.isStreaming;
+  if (typeof marked === 'undefined') return escHtml(text);
+  const opts = getMarkedOptions(options.isStreaming);
   try {
     let result = '', remaining = text;
     while (remaining.length > 0) {
       const openIdx = remaining.indexOf('<think>');
-      if (openIdx === -1) { result += marked.parse(remaining); break; }
-      if (openIdx > 0) result += marked.parse(remaining.slice(0, openIdx));
+      if (openIdx === -1) { result += marked.parse(remaining, opts); break; }
+      if (openIdx > 0) result += marked.parse(remaining.slice(0, openIdx), opts);
       const closeIdx = remaining.indexOf('</think>', openIdx + 7);
       const thinkContent = closeIdx === -1 ? remaining.slice(openIdx + 7) : remaining.slice(openIdx + 7, closeIdx);
       let rendered = '';
       if (thinkContent.trim()) {
-        try { rendered = marked.parse(thinkContent.trim()); } catch { rendered = escHtml(thinkContent.trim()); }
+        try { rendered = marked.parse(thinkContent.trim(), opts); } catch { rendered = escHtml(thinkContent.trim()); }
       }
       result += '<details class="think-block" open><summary>Thinking Process</summary><div class="think-content">' + rendered + '</div></details>';
       if (closeIdx === -1) break;
@@ -53,7 +62,6 @@ export function renderMarkdown(text, options = {}) {
     }
     return result;
   } catch { return escHtml(text); }
-  finally { _streamingRender = prev; }
 }
 
 export function syncGenerating(v) {
@@ -73,21 +81,22 @@ export function renderAuth() {
   const area = document.getElementById('auth-area');
   if (!state.user) {
     area.innerHTML = '<button id="btn-login" class="btn btn-primary">Sign in</button>';
-    document.getElementById('btn-login').onclick = login;
+    document.getElementById('btn-login').onclick = () => document.dispatchEvent(new CustomEvent('auth-login'));
   } else {
     area.innerHTML = `<div class="auth-user">
       ${state.user.image ? `<img src="${escHtml(state.user.image)}" alt="" class="avatar">` : ''}
       ${state.user.name ? `<span class="user-name">${escHtml(state.user.name)}</span>` : ''}
       <button id="btn-logout" class="btn-text logout-btn">Logout</button>
     </div>`;
-    document.getElementById('btn-logout').onclick = logout;
+    document.getElementById('btn-logout').onclick = () => document.dispatchEvent(new CustomEvent('auth-logout'));
   }
 }
 
 export function renderSessions() {
   const list = document.getElementById('session-list');
   if (state.sessions.length === 0) {
-    list.innerHTML = '<div class="session-empty">No recent chats</div>';
+    const msg = state.lastSearchQuery ? 'No matching chats' : 'No recent chats';
+    list.innerHTML = `<div class="session-empty">${msg}</div>`;
     return;
   }
   list.innerHTML = state.sessions.map(s => `
@@ -177,11 +186,27 @@ export function appendStreamingToken(msg, token) {
   const placeholder = contentDiv.querySelector('.placeholder-text');
   if (placeholder) placeholder.remove();
 
+  const renderedText = msg.content.slice(0, msg._lastRenderedLength || 0);
+  const thinkOpen = renderedText.split('<think>').length - 1;
+  const thinkClose = renderedText.split('</think>').length - 1;
+  let targetContainer = contentDiv;
+  
+  if (thinkOpen > thinkClose) {
+    const thinkContents = contentDiv.querySelectorAll('.think-content');
+    if (thinkContents.length > 0) {
+      targetContainer = thinkContents[thinkContents.length - 1];
+    }
+  }
+
   let existing = contentDiv.querySelector('.stream-text');
+  if (existing && existing.parentNode !== targetContainer) {
+    existing.remove();
+    existing = null;
+  }
   if (!existing) {
     existing = document.createElement('span');
     existing.className = 'stream-text';
-    contentDiv.appendChild(existing);
+    targetContainer.appendChild(existing);
   }
   
   // Display all tokens accumulated since the last markdown render
@@ -261,10 +286,20 @@ export function renderMessages() {
   }
   empty.classList.add('hidden');
   container.classList.remove('hidden');
-  container.innerHTML = '';
+
+  const existingIds = new Set();
+  for (const child of Array.from(container.children)) {
+    if (child.id === 'typing-indicator' || child.classList.contains('msg-error')) {
+      child.remove();
+    } else {
+      existingIds.add(child.id);
+    }
+  }
 
   for (const msg of state.messages) {
-    container.appendChild(createMessageEl(msg));
+    if (!existingIds.has(msg.id)) {
+      container.appendChild(createMessageEl(msg));
+    }
   }
 
   if (state.isGenerating) {
@@ -280,11 +315,13 @@ export function renderMessages() {
 
 
 
+let inputErrorTimer = null;
 export function showInputError(msg) {
   const el = document.getElementById('input-error');
   el.textContent = msg;
   el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 5000);
+  if (inputErrorTimer) clearTimeout(inputErrorTimer);
+  inputErrorTimer = setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
 export function updateSendBtn() {
@@ -386,16 +423,5 @@ export function handleInputKeydown(e) {
   }
 }
 
-// Setup marked
-if (typeof marked !== 'undefined') {
-  marked.setOptions({
-    gfm: true, breaks: false,
-    highlight(code, lang) {
-      if (_streamingRender) return escHtml(code);
-      if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
-      if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
-      return escHtml(code);
-    },
-  });
-}
+// marked.setOptions is removed; options are passed to marked.parse()
 

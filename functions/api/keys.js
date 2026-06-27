@@ -1,4 +1,4 @@
-import { encrypt, decrypt } from './_shared.js';
+import { encrypt, decrypt } from './_crypto.js';
 
 /**
  * GET /api/keys → List saved API keys (masked) for the current user.
@@ -66,14 +66,13 @@ export async function onRequestPost(context) {
 
   if (existing) {
     await context.env.DB.prepare(
-      'UPDATE api_key SET key = ?, updatedAt = ? WHERE id = ?',
-    ).bind(encrypted, Date.now(), existing.id).run();
+      'UPDATE api_key SET key = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+    ).bind(encrypted, existing.id).run();
   } else {
     const id = crypto.randomUUID().replace(/-/g, '');
-    const now = Date.now();
     await context.env.DB.prepare(
-      'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(id, user.sub, provider, encrypted, now, now).run();
+      'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+    ).bind(id, user.sub, provider, encrypted).run();
   }
 
   return Response.json({ success: true });
@@ -110,6 +109,7 @@ export async function onRequestDelete(context) {
 /* ── Helpers ────────────────────────────────────────────────── */
 
 function maskKey(raw) {
-  if (raw.length <= 8) return raw.slice(0, 4) + '****';
+  if (raw.length <= 4) return '*'.repeat(raw.length);
+  if (raw.length <= 8) return raw.slice(0, 2) + '*'.repeat(raw.length - 2);
   return raw.slice(0, 4) + '****' + raw.slice(-4);
 }

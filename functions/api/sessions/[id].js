@@ -57,9 +57,14 @@ export async function onRequestDelete(context) {
   const sessionId = context.params.id;
 
   try {
+    const check = await context.env.DB.prepare('SELECT id FROM session WHERE id = ? AND user_id = ?').bind(sessionId, user.sub).first();
+    if (!check) {
+      return Response.json({ error: 'Session not found or unauthorized' }, { status: 404 });
+    }
+
     await context.env.DB.batch([
-      context.env.DB.prepare('DELETE FROM message WHERE session_id IN (SELECT id FROM session WHERE id = ? AND user_id = ?)').bind(sessionId, user.sub),
-      context.env.DB.prepare('DELETE FROM session WHERE id = ? AND user_id = ?').bind(sessionId, user.sub)
+      context.env.DB.prepare('DELETE FROM message WHERE session_id = ?').bind(sessionId),
+      context.env.DB.prepare('DELETE FROM session WHERE id = ?').bind(sessionId)
     ]);
 
     return Response.json({ success: true });

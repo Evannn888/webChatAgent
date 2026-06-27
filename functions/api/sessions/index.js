@@ -8,14 +8,33 @@ export async function onRequestGet(context) {
     const url = new URL(context.request.url);
     const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 100);
     const offset = Math.max(parseInt(url.searchParams.get('offset')) || 0, 0);
+    const q = (url.searchParams.get('q') || '').trim();
 
-    const { results } = await context.env.DB.prepare(`
-      SELECT id, title, model_id, created_at, updated_at 
-      FROM session 
-      WHERE user_id = ? 
-      ORDER BY updated_at DESC
-      LIMIT ? OFFSET ?
-    `).bind(user.sub, limit, offset).all();
+    let results;
+    if (q) {
+      const escapedQuery = q.replace(/[%_]/g, '\\$&');
+      const pattern = `%${escapedQuery}%`;
+      const queryResult = await context.env.DB.prepare(`
+        SELECT id, title, model_id, created_at, updated_at FROM session
+        WHERE user_id = ? AND title LIKE ? ESCAPE '\\'
+        UNION
+        SELECT s.id, s.title, s.model_id, s.created_at, s.updated_at
+        FROM session s JOIN message m ON s.id = m.session_id
+        WHERE s.user_id = ? AND m.content LIKE ? ESCAPE '\\'
+        ORDER BY updated_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(user.sub, pattern, user.sub, pattern, limit, offset).all();
+      results = queryResult.results;
+    } else {
+      const queryResult = await context.env.DB.prepare(`
+        SELECT id, title, model_id, created_at, updated_at 
+        FROM session 
+        WHERE user_id = ? 
+        ORDER BY updated_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(user.sub, limit, offset).all();
+      results = queryResult.results;
+    }
 
     return Response.json({ sessions: results, limit, offset });
   } catch (err) {

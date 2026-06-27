@@ -1,4 +1,4 @@
-import { signJWT } from '../_shared.js';
+import { signJWT } from '../_jwt.js';
 
 /**
  * GET /api/auth/callback → Handle Google OAuth callback.
@@ -13,10 +13,17 @@ export async function onRequestGet(context) {
   try {
     const url = new URL(context.request.url);
     const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
+    const cookies = context.request.headers.get('Cookie') || '';
+    const stateCookieMatch = cookies.match(/(?:^|;\s*)oauth_state=([^;\s]+)/);
+    const expectedState = stateCookieMatch ? stateCookieMatch[1] : null;
 
     if (error || !code) {
       return new Response('OAuth error: ' + (error || 'no code'), { status: 400 });
+    }
+    if (!state || state !== expectedState) {
+      return new Response('OAuth error: invalid state parameter (CSRF attempt)', { status: 403 });
     }
 
     // 1. Exchange code for tokens
@@ -65,11 +72,12 @@ export async function onRequestGet(context) {
       context.env.JWT_SECRET,
     );
 
-    // 5. Redirect with session cookie
+    // 5. Redirect with session cookie and clear oauth_state
+    const redirectUrl = new URL('/', context.env.SITE_URL).toString();
     return new Response(null, {
       status: 302,
       headers: {
-        Location: context.env.SITE_URL + '/',
+        Location: redirectUrl,
         'Set-Cookie': `session=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
       },
     });

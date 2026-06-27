@@ -1,4 +1,4 @@
-import { verifyJWT } from './_shared.js';
+import { verifyJWT } from './_jwt.js';
 
 /**
  * Auth middleware — runs before every /api/* handler.
@@ -16,26 +16,25 @@ export async function onRequest(context) {
 
   // CSRF protection — verify Origin on state-changing requests
   const method = context.request.method;
-  if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+  if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
     const origin = context.request.headers.get('Origin');
-    const siteUrl = context.env.SITE_URL;
-    if (siteUrl) {
-      if (origin) {
-        const expected = new URL(siteUrl).origin;
-        if (origin !== expected) {
-          return Response.json({ error: 'Forbidden: origin mismatch' }, { status: 403 });
-        }
-      } else {
-        if (!context.request.headers.has('X-Requested-With')) {
-          return Response.json({ error: 'Forbidden: missing Origin or X-Requested-With header' }, { status: 403 });
-        }
+    const siteUrl = context.env.SITE_URL || new URL(context.request.url).origin;
+    
+    if (origin) {
+      const expected = new URL(siteUrl).origin;
+      if (origin !== expected) {
+        return Response.json({ error: 'Forbidden: origin mismatch' }, { status: 403 });
+      }
+    } else {
+      if (!context.request.headers.has('X-Requested-With')) {
+        return Response.json({ error: 'Forbidden: missing Origin or X-Requested-With header' }, { status: 403 });
       }
     }
   }
 
   // Parse session JWT from cookie
   const cookie = context.request.headers.get('Cookie') || '';
-  const match = cookie.match(/session=([^;\s]+)/);
+  const match = cookie.match(/(?:^|;\s*)session=([^;\s]+)/);
 
   if (match) {
     try {

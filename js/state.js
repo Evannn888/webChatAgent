@@ -9,10 +9,9 @@ export const state = {
   files: [],
   sessions: [], 
   currentSessionId: null,
+  lastSearchQuery: '',
 };
 
 let msgIdCounter = 0;
 export const nextId = () => `msg_${++msgIdCounter}`;
 
-export let activeStream = null;
-export const setActiveStream = (stream) => { activeStream = stream; };

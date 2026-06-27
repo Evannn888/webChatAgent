@@ -331,10 +331,13 @@ async function* parseSSE(body, extractContent) {
         }
       }
       if (done) {
-        if (buffer.trim()) {
-          if (buffer.trim().startsWith('data: ')) {
+        const remainingLines = buffer.split('\n').map(l => l.replace(/\r$/, ''));
+        for (const line of remainingLines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (trimmed.startsWith('data: ')) {
             try {
-              const json = JSON.parse(buffer.trim().slice(6));
+              const json = JSON.parse(trimmed.slice(6));
               const content = extractContent(json);
               if (content) yield content;
             } catch { /* ignore */ }

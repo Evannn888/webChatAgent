@@ -1,8 +1,9 @@
-import { checkAuth, loadSession, deleteSession } from './api.js';
+import { checkAuth, loadSession, deleteSession, loadSessions, login, logout } from './api.js';
 import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
-  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn 
+  handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn,
+  renderAuth, renderMessages, renderSessions, syncGenerating
 } from './ui.js';
 import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
@@ -10,7 +11,19 @@ import { state } from './state.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // UI render listeners for API events
+  document.addEventListener('renderAuth', renderAuth);
+  document.addEventListener('renderMessages', renderMessages);
+  document.addEventListener('renderSessions', renderSessions);
+  document.addEventListener('syncGenerating', e => syncGenerating(e.detail));
+  document.addEventListener('updateModelLabel', e => {
+    document.getElementById('model-label').textContent = e.detail;
+  });
+
   // Header buttons
+  document.addEventListener('auth-login', login);
+  document.addEventListener('auth-logout', logout);
+
   document.getElementById('sidebar-toggle').addEventListener('click', () => toggleSidebar());
   document.getElementById('model-menu-btn').addEventListener('click', () => toggleModelMenu());
   document.getElementById('new-chat-btn').addEventListener('click', () => clearChat());
@@ -23,6 +36,23 @@ document.addEventListener('DOMContentLoaded', () => {
   if (backdropEl) {
     backdropEl.addEventListener('click', () => toggleSidebar());
   }
+
+  // Search
+  const searchInput = document.getElementById('search-input');
+  let searchTimeout = null;
+  searchInput.addEventListener('input', (e) => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      const q = e.target.value.trim();
+      loadSessions(q);
+    }, 300);
+  });
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      loadSessions('');
+    }
+  });
 
   // Input area
   document.getElementById('attach-btn').addEventListener('click', () => {
@@ -87,6 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = e.target.closest('.session-item');
       if (item) {
         stopGenerating();
+        const searchInput = document.getElementById('search-input');
+        if (searchInput && searchInput.value) {
+          searchInput.value = '';
+          loadSessions();
+        }
         loadSession(item.getAttribute('data-id'));
       }
     }
@@ -127,7 +162,8 @@ export function confirmDeleteSession() {
     const deleteBtn = document.getElementById('confirm-delete-btn');
     
     if (!modal || !cancelBtn || !deleteBtn) {
-      resolve(confirm('Are you sure you want to delete this chat?'));
+      console.error('Confirm modal elements not found');
+      resolve(false);
       return;
     }
 

@@ -38,7 +38,8 @@ function resizeImage(file, maxDim, quality) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]); // Base64 without header
+      const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      resolve(canvas.toDataURL(mimeType, quality).split(',')[1]); // Base64 without header
     };
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image')); };
     img.src = objectUrl;
@@ -50,7 +51,11 @@ async function extractPDFText(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   const pages = [];
-  for (let i = 1; i <= Math.min(pdf.numPages, 20); i++) {
+  const numPagesToExtract = Math.min(pdf.numPages, 20);
+  if (pdf.numPages > 20) {
+    showInputError(`PDF has ${pdf.numPages} pages. Only the first 20 will be processed.`);
+  }
+  for (let i = 1; i <= numPagesToExtract; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     pages.push(`[Page ${i}]\n${content.items.map(it => it.str).join(' ')}`);
@@ -65,18 +70,18 @@ export function initDragDrop() {
   const appEl = document.getElementById('app');
   if (!area) return;
   
-  let dragCounter = 0;
   appEl.addEventListener('dragenter', e => {
-    e.preventDefault(); dragCounter++; appEl.classList.add('drop-active');
+    e.preventDefault(); appEl.classList.add('drop-active');
   });
   appEl.addEventListener('dragleave', e => {
     e.preventDefault(); 
-    dragCounter = Math.max(0, dragCounter - 1);
-    if (dragCounter === 0) appEl.classList.remove('drop-active');
+    if (!appEl.contains(e.relatedTarget)) {
+      appEl.classList.remove('drop-active');
+    }
   });
   appEl.addEventListener('dragover', e => e.preventDefault());
   appEl.addEventListener('drop', e => {
-    e.preventDefault(); dragCounter = 0; appEl.classList.remove('drop-active');
+    e.preventDefault(); appEl.classList.remove('drop-active');
     if (e.dataTransfer.files?.length) processFiles(e.dataTransfer.files);
   });
 }

@@ -1,4 +1,4 @@
-import { signJWT } from '../_shared.js';
+import { signJWT } from '../_jwt.js';
 
 /**
  * GET /api/auth/login → Serve local dev login form or redirect to Google OAuth.
@@ -17,6 +17,7 @@ export async function onRequestGet(context) {
   }
 
   // Production: redirect to Google OAuth
+  const state = crypto.randomUUID();
   const params = new URLSearchParams({
     client_id: context.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${context.env.SITE_URL}/api/auth/callback`,
@@ -24,12 +25,16 @@ export async function onRequestGet(context) {
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'consent',
+    state: state,
   });
 
-  return Response.redirect(
-    `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
-    302,
-  );
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
+      'Set-Cookie': `oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+    },
+  });
 }
 
 /**

@@ -1,6 +1,6 @@
 import { state, nextId } from './state.js';
 import { MODEL_OPTIONS } from './config.js';
-import { renderAuth, renderSessions, renderMessages, syncGenerating } from './ui.js';
+// Removed ui.js import to avoid DOM leakage
 
 export async function checkAuth() {
   try {
@@ -17,7 +17,7 @@ export async function checkAuth() {
   } catch {
     state.user = null;
   }
-  renderAuth();
+  document.dispatchEvent(new CustomEvent('renderAuth'));
 }
 
 export function login() { 
@@ -32,18 +32,19 @@ export async function logout() {
   state.messages = []; 
   state.error = null;
   localStorage.removeItem('currentSessionId');
-  renderAuth(); 
-  renderMessages(); 
-  renderSessions();
+  document.dispatchEvent(new CustomEvent('renderAuth')); 
+  document.dispatchEvent(new CustomEvent('renderMessages')); 
+  document.dispatchEvent(new CustomEvent('renderSessions'));
 }
 
-export async function loadSessions() {
+export async function loadSessions(query = '') {
   try {
-    const res = await fetch('/api/sessions');
+    const res = await fetch(`/api/sessions${query ? `?q=${encodeURIComponent(query)}` : ''}`);
     const data = await res.json();
     if (data.sessions) { 
       state.sessions = data.sessions; 
-      renderSessions(); 
+      state.lastSearchQuery = query;
+      document.dispatchEvent(new CustomEvent('renderSessions')); 
     }
   } catch (err) { 
     console.error('Failed to load sessions:', err); 
@@ -54,22 +55,23 @@ export async function loadSession(id) {
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
   state.messages = []; 
-  syncGenerating(false);
+  document.dispatchEvent(new CustomEvent('syncGenerating', { detail: false }));
   const session = state.sessions.find(s => s.id === id);
   if (session?.model_id) {
     const model = MODEL_OPTIONS.find(m => m.model === session.model_id);
     if (model) { 
       state.currentModel = model; 
-      document.getElementById('model-label').textContent = model.label; 
+      // Update DOM model label
+      document.dispatchEvent(new CustomEvent('updateModelLabel', { detail: model.label }));
     }
   }
-  renderSessions();
+  document.dispatchEvent(new CustomEvent('renderSessions'));
   try {
     const res = await fetch(`/api/sessions/${id}`);
     const data = await res.json();
     if (data.messages) {
       state.messages = data.messages.map(m => parseMessage({ id: nextId(), role: m.role, content: m.content }));
-      renderMessages();
+      document.dispatchEvent(new CustomEvent('renderMessages'));
     }
   } catch (err) { 
     console.error('Failed to load session:', err); 
@@ -80,7 +82,7 @@ export async function deleteSession(id) {
   try {
     await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
     state.sessions = state.sessions.filter(s => s.id !== id);
-    renderSessions();
+    document.dispatchEvent(new CustomEvent('renderSessions'));
     return true;
   } catch (err) { 
     console.error('Failed to delete session:', err); 
@@ -108,21 +110,45 @@ export async function* parseSSE(reader) {
   let buffer = '';
 
   const emit = function* (str, isLast) {
-    const events = str.split(/\r?\n\r?\n/);
-    if (!isLast) buffer = events.pop();
-    else buffer = '';
-    
-    for (const ev of events) {
-      if (!ev.trim()) continue;
-      const lines = ev.split(/\r?\n/);
+    let startIdx = 0;
+    while (true) {
+      const match = str.substring(startIdx).match(/\r?\n\r?\n/);
+      if (!match) break;
+      const splitIdx = startIdx + match.index;
+      const eventStr = str.substring(startIdx, splitIdx);
+      startIdx = splitIdx + match[0].length;
+      
+      if (!eventStr.trim()) continue;
+      const lines = eventStr.split(/\r?\n/);
       let evType = '', evData = '';
       for (const line of lines) {
         if (line.startsWith('event: ')) evType = line.slice(7).trim();
         if (line.startsWith('data: ')) evData = line.slice(6);
       }
       if (evType && evData) {
-        try { yield { type: evType, data: JSON.parse(evData) }; } catch (e) {}
+        try {
+          yield { type: evType, data: JSON.parse(evData) };
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+          console.warn('SSE JSON parse error:', e);
+        }
       }
+    }
+    buffer = str.substring(startIdx);
+    if (isLast && buffer.trim()) {
+      // try to parse whatever is left if it looks like an event
+      const lines = buffer.split(/\r?\n/);
+      let evType = '', evData = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) evType = line.slice(7).trim();
+        if (line.startsWith('data: ')) evData = line.slice(6);
+      }
+      if (evType && evData) {
+        try { yield { type: evType, data: JSON.parse(evData) }; } catch (e) {
+          if (e.name === 'AbortError') throw e;
+        }
+      }
+      buffer = '';
     }
   };
 
@@ -182,7 +208,7 @@ export async function generateSessionTitle(prompt) {
     const session = state.sessions.find(s => s.id === sessionId);
     if (session) {
       session.title = title;
-      renderSessions();
+      document.dispatchEvent(new CustomEvent('renderSessions'));
     }
   } catch (err) {
     console.error('Failed to generate session title:', err);

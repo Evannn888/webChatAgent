@@ -1,6 +1,9 @@
-import { state, nextId, activeStream, setActiveStream } from './state.js';
+import { state, nextId } from './state.js';
+
+let activeStream = null;
+const setActiveStream = (stream) => { activeStream = stream; };
 import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, appendStreamingToken, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
-import { generateSessionTitle, parseSSE } from './api.js';
+import { generateSessionTitle, parseSSE, loadSessions } from './api.js';
 
 /* ── Message Construction ─────────────────────────────────── */
 
@@ -59,7 +62,7 @@ function finalizeMessage(assistantMsg, input) {
   if (isFirstMessage && state.currentSessionId && assistantMsg.content && !state.error) {
     const userMsg = state.messages.find(m => m.role === 'user');
     const prompt = userMsg?.displayContent || 'Chat with files';
-    generateSessionTitle(prompt);
+    generateSessionTitle(prompt).catch(err => console.error('Failed to generate session title:', err));
   }
 }
 
@@ -119,7 +122,7 @@ export async function handleSend() {
 
 export function stopGenerating() {
   if (activeStream) {
-    activeStream.reader.cancel();
+    try { activeStream.reader.cancel(); } catch (e) {}
     setActiveStream(null);
   }
 }
@@ -130,7 +133,14 @@ export function clearChat() {
   state.messages = []; state.error = null; state.files = [];
   syncGenerating(false);
   renderMessages();
-  renderSessions();
+  
+  const searchInput = document.getElementById('search-input');
+  if (searchInput && searchInput.value) {
+    searchInput.value = '';
+    loadSessions();
+  } else {
+    renderSessions();
+  }
 }
 
 async function ensureSession() {
@@ -138,7 +148,7 @@ async function ensureSession() {
     const res = await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'New Chat', model: state.currentModel.model })
+      body: JSON.stringify({ title: 'New Chat', model_id: state.currentModel.model })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

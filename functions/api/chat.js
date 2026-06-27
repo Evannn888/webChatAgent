@@ -1,4 +1,4 @@
-import { decrypt } from './_shared.js';
+import { decrypt } from './_crypto.js';
 import { streamLLM } from './_providers.js';
 
 /**
@@ -63,16 +63,9 @@ export async function onRequestPost(context) {
         { status: 403 }
       );
     }
-
-    // Now safe to insert user message in background
-    const userMsg = messages[messages.length - 1];
-    context.waitUntil(
-      context.env.DB.batch([
-        context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
-        context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
-      ]).catch(err => console.error('Failed to save user message:', err))
-    );
   }
+
+  // User message will be saved in background after stream succeeds
 
   // Stream the LLM response as SSE
   const stream = new ReadableStream({
@@ -80,6 +73,7 @@ export async function onRequestPost(context) {
       const encoder = new TextEncoder();
       let assistantContent = '';
       let hasError = false;
+      let receivedFirstChunk = false;
 
       const sendEvent = (event, data) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
@@ -88,6 +82,7 @@ export async function onRequestPost(context) {
       try {
           const gen = streamLLM(provider, apiKey, model, messages, context.request.signal);
           for await (const chunk of gen) {
+            receivedFirstChunk = true;
             if (chunk.text) {
               assistantContent += chunk.text;
               sendEvent('text', chunk.text);
@@ -106,11 +101,14 @@ export async function onRequestPost(context) {
           assistantContent += errMsg;
           try { sendEvent('text', errMsg); } catch { /* ignore */ }
         } finally {
-          if (sessionId && assistantContent) {
+          if (sessionId && receivedFirstChunk) {
+            const userMsg = messages[messages.length - 1];
             context.waitUntil(
-              context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)')
-                .bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent).run()
-                .catch(err => console.error('Failed to save assistant message:', err))
+              context.env.DB.batch([
+                context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
+                context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent),
+                context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
+              ]).catch(err => console.error('Failed to save messages:', err))
             );
           }
           try { controller.close(); } catch { /* ignore */ }
@@ -125,4 +123,4 @@ export async function onRequestPost(context) {
         'Connection': 'keep-alive',
       },
     });
-  }
+}
