@@ -21,7 +21,7 @@
   <div id="app" class="app-shell">
 
     <!-- Header -->
-    <header class="app-header glass-panel">
+    <header class="app-header">
       <div class="header-left">
         <button id="sidebar-toggle" class="icon-btn" title="Toggle Sidebar">☰</button>
         <div class="logo-mark">W</div>
@@ -51,9 +51,9 @@
       <!-- Sidebar backdrop (mobile) -->
       <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
       <!-- Sidebar -->
-      <aside id="sidebar" class="glass-panel">
+      <aside id="sidebar">
         <div class="sidebar-header">
-          <button id="sidebar-new-chat" class="btn btn-ghost full-width">+ New Chat</button>
+          <button id="sidebar-new-chat" class="btn btn-primary full-width">+ New Chat</button>
         </div>
         <div id="session-list" class="session-list"></div>
       </aside>
@@ -75,7 +75,7 @@
         <div class="input-wrapper">
           <div id="input-error" class="input-error hidden"></div>
           <div id="file-preview" class="file-preview hidden"></div>
-          <div id="input-area" class="input-box glass-panel">
+          <div id="input-area" class="input-box">
             <button id="attach-btn" class="icon-btn" title="Attach files">+</button>
             <input type="file" id="file-input" accept=".pdf,image/*,text/*" multiple class="hidden">
             <textarea id="msg-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
