@@ -324,6 +324,11 @@ button { font-family: inherit; }
   display: block;
   opacity: 1;
 }
+@media (min-width: 640px) {
+  .sidebar-backdrop, .sidebar-backdrop.active {
+    display: none !important;
+  }
+}
 .session-list { flex: 1; overflow-y: auto; }
 .session-empty {
   padding: 16px;
