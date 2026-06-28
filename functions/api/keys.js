@@ -66,16 +66,16 @@ export async function onRequestPost(context) {
 
   if (existing) {
     await context.env.DB.prepare(
-      'UPDATE api_key SET key = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE api_key SET key = ?, updatedAt = (unixepoch() * 1000) WHERE id = ?',
     ).bind(encrypted, existing.id).run();
   } else {
     const id = crypto.randomUUID().replace(/-/g, '');
     await context.env.DB.prepare(
-      'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000))',
     ).bind(id, user.sub, provider, encrypted).run();
   }
 
-  return Response.json({ success: true });
+  return Response.json({ success: true, id: existing ? existing.id : id });
 }
 
 /**

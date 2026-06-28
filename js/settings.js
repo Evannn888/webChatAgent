@@ -51,9 +51,15 @@ export async function saveKey(provider) {
   try {
     const res = await fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) });
     if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to save'); }
+    const data = await res.json();
     input.value = '';
     showSettingsAlert('success', `${provider} key saved`);
-    const r = await fetch('/api/keys'); const d = await r.json(); savedKeys = d.keys || [];
+    // Update savedKeys in-place instead of re-fetching all keys
+    const maskedKey = key.length > 8 ? key.slice(0, 4) + '****' + key.slice(-4) : '****';
+    const existingIdx = savedKeys.findIndex(k => k.provider === provider);
+    const entry = { id: data.id || 'unknown', provider, keyMasked: maskedKey };
+    if (existingIdx >= 0) savedKeys[existingIdx] = entry;
+    else savedKeys.push(entry);
     renderSettingsForm();
   } catch (err) { showSettingsAlert('error', err.message); }
 }

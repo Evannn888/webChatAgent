@@ -295,19 +295,30 @@ function makeReasoningExtractor() {
 
 /* ── Shared SSE parser ─────────────────────────────────────── */
 
+const READ_TIMEOUT_MS = 60000; // Abort if no data arrives for 60s during streaming
+
 async function* parseSSE(body, extractContent) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 
   try {
+    let readTimer = null;
+    const resetReadTimer = () => {
+      if (readTimer) clearTimeout(readTimer);
+      readTimer = setTimeout(() => {
+        try { reader.cancel(); } catch {}
+      }, READ_TIMEOUT_MS);
+    };
+    resetReadTimer();
     while (true) {
       const { done, value } = await reader.read();
+      resetReadTimer();
       if (value) {
         buffer += decoder.decode(value, { stream: !done });
         const lines = buffer.split('\n').map(l => l.replace(/\r$/, ''));
         buffer = lines.pop() ?? '';
-        if (buffer.length > 1024 * 1024) throw new Error('SSE chunk too large, possible malformed stream');
+        if (buffer.length > 1024 * 1024) throw new Error('Response too large. The model may have produced a malformed response.');
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -346,6 +357,7 @@ async function* parseSSE(body, extractContent) {
         break;
       }
     }
+    if (readTimer) clearTimeout(readTimer);
   } finally {
     try {
       await reader.cancel();

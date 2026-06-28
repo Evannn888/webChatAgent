@@ -102,14 +102,22 @@ export async function onRequestPost(context) {
           try { sendEvent('text', errMsg); } catch { /* ignore */ }
         } finally {
           if (sessionId && receivedFirstChunk) {
-            const userMsg = messages[messages.length - 1];
-            context.waitUntil(
-              context.env.DB.batch([
+            const userMsg = [...messages].reverse().find(m => m.role === 'user');
+            if (userMsg) {
+              const persistMessages = () => context.env.DB.batch([
                 context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'user', userMsg.content),
                 context.env.DB.prepare('INSERT INTO message (id, session_id, role, content) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), sessionId, 'assistant', assistantContent),
                 context.env.DB.prepare('UPDATE session SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(sessionId)
-              ]).catch(err => console.error('Failed to save messages:', err))
-            );
+              ]);
+              context.waitUntil(
+                persistMessages().catch(err => {
+                  console.error('Failed to save messages (attempt 1):', err);
+                  return persistMessages().catch(retryErr => {
+                    console.error('Failed to save messages (attempt 2, giving up):', retryErr);
+                  });
+                })
+              );
+            }
           }
           try { controller.close(); } catch { /* ignore */ }
         }

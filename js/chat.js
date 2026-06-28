@@ -57,9 +57,9 @@ function finalizeMessage(assistantMsg, input) {
   }
   input.focus();
 
-  // If this was the first message and it succeeded, generate a title
-  const isFirstMessage = state.messages.filter(m => m.role === 'user').length === 1;
-  if (isFirstMessage && state.currentSessionId && assistantMsg.content && !state.error) {
+  const session = state.sessions.find(s => s.id === state.currentSessionId);
+  const needsTitle = session && (!session.title || session.title === 'New Chat');
+  if (needsTitle && state.currentSessionId && assistantMsg.content && !state.error) {
     const userMsg = state.messages.find(m => m.role === 'user');
     const prompt = userMsg?.displayContent || 'Chat with files';
     generateSessionTitle(prompt).catch(err => console.error('Failed to generate session title:', err));
@@ -70,10 +70,11 @@ function finalizeMessage(assistantMsg, input) {
 
 export async function handleSend() {
   if (state.isGenerating) return;
+  state.isGenerating = true; // Guard immediately to prevent double-sends
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
-  if (!text && state.files.length === 0) return;
-  if (!state.user) { showInputError('Please sign in to send messages.'); return; }
+  if (!text && state.files.length === 0) { state.isGenerating = false; return; }
+  if (!state.user) { state.isGenerating = false; showInputError('Please sign in to send messages.'); return; }
 
   const isFirstMessage = state.messages.length === 0;
   const userMsg = buildUserMessage(text, state.files);
@@ -97,7 +98,7 @@ export async function handleSend() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider: state.currentModel.provider, model: state.currentModel.model,
-        messages: state.messages.filter(m => m.content && m !== assistantMsg)
+        messages: state.messages.filter(m => (m.role === 'user' || m.content) && m !== assistantMsg)
           .slice(-50)
           .map(m => ({ role: m.role, content: m.content })),
         sessionId: state.currentSessionId,

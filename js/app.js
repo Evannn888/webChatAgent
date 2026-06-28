@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Global keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.id?.startsWith('key-')) saveKey(e.target.id.replace('key-', ''));
+    if (e.key === 'Enter' && e.target.id?.startsWith('key-') && e.target.closest('#settings-form')) saveKey(e.target.id.replace('key-', ''));
     if (e.key === 'Escape') { closeSettingsModal(); closeModelMenu(); }
   });
   

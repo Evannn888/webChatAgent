@@ -15,12 +15,14 @@ export async function onRequestGet(context) {
       const escapedQuery = q.replace(/[%_]/g, '\\$&');
       const pattern = `%${escapedQuery}%`;
       const queryResult = await context.env.DB.prepare(`
-        SELECT id, title, model_id, created_at, updated_at FROM session
-        WHERE user_id = ? AND title LIKE ? ESCAPE '\\'
-        UNION
-        SELECT s.id, s.title, s.model_id, s.created_at, s.updated_at
-        FROM session s JOIN message m ON s.id = m.session_id
-        WHERE s.user_id = ? AND m.content LIKE ? ESCAPE '\\'
+        SELECT DISTINCT id, title, model_id, created_at, updated_at FROM (
+          SELECT id, title, model_id, created_at, updated_at FROM session
+          WHERE user_id = ? AND title LIKE ? ESCAPE '\\'
+          UNION ALL
+          SELECT s.id, s.title, s.model_id, s.created_at, s.updated_at
+          FROM session s JOIN message m ON s.id = m.session_id
+          WHERE s.user_id = ? AND m.content LIKE ? ESCAPE '\\'
+        )
         ORDER BY updated_at DESC
         LIMIT ? OFFSET ?
       `).bind(user.sub, pattern, user.sub, pattern, limit, offset).all();

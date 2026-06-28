@@ -52,6 +52,7 @@ export async function loadSessions(query = '') {
 }
 
 export async function loadSession(id) {
+  state.error = null;
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
   state.messages = []; 

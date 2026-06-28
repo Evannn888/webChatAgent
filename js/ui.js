@@ -45,7 +45,15 @@ export function renderMarkdown(text, options = {}) {
   if (typeof marked === 'undefined') return escHtml(text);
   const opts = getMarkedOptions(options.isStreaming);
   try {
-    let result = '', remaining = text;
+    // Protect <think>/</think> inside fenced code blocks by replacing with placeholders
+    const codeBlockPlaceholders = [];
+    const protectedText = text.replace(/```[\s\S]*?```|`[^`\n]+`/g, (match) => {
+      const idx = codeBlockPlaceholders.length;
+      codeBlockPlaceholders.push(match);
+      return `\x00CODE_BLOCK_${idx}\x00`;
+    });
+
+    let result = '', remaining = protectedText;
     while (remaining.length > 0) {
       const openIdx = remaining.indexOf('<think>');
       if (openIdx === -1) { result += marked.parse(remaining, opts); break; }
@@ -60,6 +68,12 @@ export function renderMarkdown(text, options = {}) {
       if (closeIdx === -1) break;
       remaining = remaining.slice(closeIdx + 8);
     }
+
+    // Restore code block placeholders
+    result = result.replace(/\x00CODE_BLOCK_(\d+)\x00/g, (_, idx) => {
+      return escHtml(codeBlockPlaceholders[parseInt(idx)]);
+    });
+
     return result;
   } catch { return escHtml(text); }
 }
@@ -218,26 +232,12 @@ export function appendStreamingToken(msg, token) {
   scheduleStreamRender(msg);
 }
 
-// Legacy — kept as no-op for compatibility; streaming uses appendStreamingToken
-export function updateMessageContent(msg) {
-  // Streaming is now handled by appendStreamingToken for incremental performance.
-  // If called directly, do a one-shot render.
-  if (!msg._isStreaming && msg.content) {
-    const contentDiv = document.getElementById(`content-${msg.id}`);
-    if (contentDiv && contentDiv.isConnected) {
-      contentDiv.innerHTML = renderMarkdown(msg.content);
-      const c = document.getElementById('chat-container');
-      if (c) c.scrollTop = c.scrollHeight;
-    }
-  }
-}
 
 export function cancelPendingRender(msg) {
   if (msg._streamRenderTimer) {
     clearTimeout(msg._streamRenderTimer);
     msg._streamRenderTimer = null;
   }
-  msg._renderFrameRequested = false;
   msg._isStreaming = false;
 }
 
@@ -289,8 +289,10 @@ export function renderMessages() {
 
   const existingIds = new Set();
   for (const child of Array.from(container.children)) {
-    if (child.id === 'typing-indicator' || child.classList.contains('msg-error')) {
+    if (child.classList.contains('msg-error')) {
       child.remove();
+    } else if (child.id === 'typing-indicator') {
+      if (!state.isGenerating) child.remove();
     } else {
       existingIds.add(child.id);
     }
