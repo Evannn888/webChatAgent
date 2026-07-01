@@ -64,18 +64,20 @@ export async function onRequestPost(context) {
     'SELECT id FROM api_key WHERE userId = ? AND provider = ? LIMIT 1',
   ).bind(user.sub, provider).first();
 
+  let keyId;
   if (existing) {
+    keyId = existing.id;
     await context.env.DB.prepare(
       'UPDATE api_key SET key = ?, updatedAt = (unixepoch() * 1000) WHERE id = ?',
-    ).bind(encrypted, existing.id).run();
+    ).bind(encrypted, keyId).run();
   } else {
-    const id = crypto.randomUUID().replace(/-/g, '');
+    keyId = crypto.randomUUID().replace(/-/g, '');
     await context.env.DB.prepare(
       'INSERT INTO api_key (id, userId, provider, key, createdAt, updatedAt) VALUES (?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000))',
-    ).bind(id, user.sub, provider, encrypted).run();
+    ).bind(keyId, user.sub, provider, encrypted).run();
   }
 
-  return Response.json({ success: true, id: existing ? existing.id : id });
+  return Response.json({ success: true, id: keyId });
 }
 
 /**

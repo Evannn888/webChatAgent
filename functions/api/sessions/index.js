@@ -54,7 +54,7 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
     const title = body.title || 'New Chat';
-    const model = body.model || null;
+    const model = body.model_id || body.model || null;
     const sessionId = crypto.randomUUID();
 
     await context.env.DB.prepare(`

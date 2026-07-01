@@ -98,7 +98,7 @@ export async function handleSend() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider: state.currentModel.provider, model: state.currentModel.model,
-        messages: state.messages.filter(m => (m.role === 'user' || m.content) && m !== assistantMsg)
+        messages: state.messages.filter(m => m.content && m !== assistantMsg)
           .slice(-50)
           .map(m => ({ role: m.role, content: m.content })),
         sessionId: state.currentSessionId,
