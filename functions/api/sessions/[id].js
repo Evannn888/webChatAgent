@@ -34,11 +34,22 @@ export async function onRequestPatch(context) {
   try {
     const body = await context.request.json();
 
+    // Updatable fields: title, and model_id (the model this chat uses).
+    const sets = [];
+    const values = [];
     if (typeof body.title === 'string' && body.title.trim()) {
-      const title = body.title.trim().slice(0, 200);
+      sets.push('title = ?');
+      values.push(body.title.trim().slice(0, 200));
+    }
+    if (typeof body.model_id === 'string' && body.model_id.trim()) {
+      sets.push('model_id = ?');
+      values.push(body.model_id.trim().slice(0, 100));
+    }
+
+    if (sets.length) {
       await context.env.DB.prepare(
-        'UPDATE session SET title = ? WHERE id = ? AND user_id = ?'
-      ).bind(title, sessionId, user.sub).run();
+        `UPDATE session SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`
+      ).bind(...values, sessionId, user.sub).run();
     }
 
     return Response.json({ success: true });

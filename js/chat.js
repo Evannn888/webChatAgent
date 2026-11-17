@@ -1,6 +1,7 @@
 import { state, nextId } from './state.js';
+import { supportsImages } from './config.js';
 import { syncGenerating, renderMessages, renderSessions, renderFilePreview, showInputError, updateSendBtn, adjustHeight, appendStreamingToken, cancelPendingRender, injectUsageBadge, renderMarkdown, appendMessage, showTypingIndicator, removeTypingIndicator, showChatError } from './ui.js';
-import { generateSessionTitle, parseSSE, loadSessions } from './api.js';
+import { generateSessionTitle, parseSSE, loadSessions, saveSessionModel } from './api.js';
 
 // The in-flight request: { controller: AbortController, assistantMsg }
 let activeStream = null;
@@ -33,14 +34,27 @@ function buildUserMessage(text, files) {
 
 const stripThinking = (text) => text.replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '').trim();
 
-/** The conversation as sent to the model. */
-function buildHistory(messages) {
+/**
+ * The conversation as sent to the model. History is plain text, so a chat can
+ * move between providers; nothing provider-specific (thinking blocks etc.) is resent.
+ */
+function buildHistory(messages, { images = true } = {}) {
   const history = [];
   for (const m of messages) {
     // Earlier reasoning isn't part of the answer; resending it wastes tokens.
     const content = m.role === 'assistant' ? stripThinking(m.content || '') : m.content;
     if (!content) continue;
-    history.push({ role: m.role, content, ...(m.images ? { images: m.images } : {}) });
+    // Text-only models get just the "(image attached)" note that is already in the text.
+    const imgs = images && m.images?.length ? m.images : null;
+    const prev = history[history.length - 1];
+    if (prev && prev.role === m.role) {
+      // A turn that got no reply (e.g. it failed) leaves two user turns in a row;
+      // merge them so every provider receives strictly alternating turns.
+      prev.content += `\n\n${content}`;
+      if (imgs) prev.images = [...(prev.images || []), ...imgs];
+      continue;
+    }
+    history.push({ role: m.role, content, ...(imgs ? { images: imgs } : {}) });
   }
   const recent = history.slice(-MAX_HISTORY);
   // Claude and Gemini reject a conversation that starts with an assistant turn,
@@ -101,6 +115,12 @@ export async function handleSend() {
   const text = input.value.trim();
   if (!text && state.files.length === 0) { state.isGenerating = false; return; }
   if (!state.user) { state.isGenerating = false; showInputError('Please sign in to send messages.'); return; }
+  const current = state.currentModel;
+  if (state.files.some(f => f.isImage) && !supportsImages(current)) {
+    state.isGenerating = false;
+    showInputError(`${current.label} can't read images. Remove the image or choose another model.`);
+    return;
+  }
 
   // state.messages is replaced whenever the user opens another chat or starts a
   // new one, so this tells us whether the chat this reply belongs to is still on screen.
@@ -109,9 +129,9 @@ export async function handleSend() {
 
   const userMsg = buildUserMessage(text, state.files);
   convo.push(userMsg);
-  const assistantMsg = { id: nextId(), role: 'assistant', content: '', model: state.currentModel.model };
+  const assistantMsg = { id: nextId(), role: 'assistant', content: '', model: current.model };
   convo.push(assistantMsg);
-  const { provider, model } = state.currentModel;
+  const { provider, model } = current;
 
   input.value = ''; state.files = [];
   renderFilePreview(); adjustHeight();
@@ -128,13 +148,17 @@ export async function handleSend() {
   activeStream = stream;
 
   try {
-    const sessionId = await ensureSession(isActive);
+    const sessionId = await ensureSession(isActive, model);
     if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    // Keep the chat's recorded model in step with the one actually used (covers
+    // chats with no model recorded, or an id from the old model list).
+    const session = state.sessions.find(s => s.id === sessionId);
+    if (session && session.model_id !== model) saveSessionModel(sessionId, model);
     const res = await fetch('/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider, model,
-        messages: buildHistory(convo.filter(m => m !== assistantMsg)),
+        messages: buildHistory(convo.filter(m => m !== assistantMsg), { images: supportsImages(current) }),
         sessionId,
       }),
       signal: controller.signal,
@@ -190,13 +214,13 @@ export function clearChat() {
 }
 
 /** Returns the session id for this send, creating the session on the first message. */
-async function ensureSession(isActive) {
+async function ensureSession(isActive, modelId) {
   if (state.currentSessionId) return state.currentSessionId;
 
   const res = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: 'New Chat', model_id: state.currentModel.model })
+    body: JSON.stringify({ title: 'New Chat', model_id: modelId })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

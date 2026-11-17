@@ -415,9 +415,11 @@ export function closeModelMenu() {
 
 export function selectModel(modelId) {
   const m = MODEL_OPTIONS.find(m => m.model === modelId);
-  if (m) {
+  if (m && m.model !== state.currentModel.model) {
     state.currentModel = m;
     document.getElementById('model-label').textContent = state.currentModel.label;
+    // app.js saves the choice for the open chat.
+    document.dispatchEvent(new CustomEvent('modelSelected', { detail: m.model }));
   }
   closeModelMenu();
 }

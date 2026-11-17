@@ -1,5 +1,5 @@
 import { state, nextId } from './state.js';
-import { MODEL_OPTIONS } from './config.js';
+import { findModel } from './config.js';
 // Removed ui.js import to avoid DOM leakage
 
 export async function checkAuth() {
@@ -66,14 +66,12 @@ export async function loadSession(id) {
   state.messages = []; 
   document.dispatchEvent(new CustomEvent('renderMessages'));
   document.dispatchEvent(new CustomEvent('syncGenerating', { detail: false }));
+  // Restore the model this chat uses (ids from the old model list map to their successor).
   const session = state.sessions.find(s => s.id === id);
-  if (session?.model_id) {
-    const model = MODEL_OPTIONS.find(m => m.model === session.model_id);
-    if (model) { 
-      state.currentModel = model; 
-      // Update DOM model label
-      document.dispatchEvent(new CustomEvent('updateModelLabel', { detail: model.label }));
-    }
+  const model = session?.model_id ? findModel(session.model_id) : undefined;
+  if (model) {
+    state.currentModel = model;
+    document.dispatchEvent(new CustomEvent('updateModelLabel', { detail: model.label }));
   }
   document.dispatchEvent(new CustomEvent('renderSessions'));
   // Superseded by a newer load, or the user started a new chat meanwhile.
@@ -90,6 +88,22 @@ export async function loadSession(id) {
     }
   } catch (err) { 
     console.error('Failed to load session:', err); 
+  }
+}
+
+/** Record the model a chat uses, so reopening the chat restores it. */
+export async function saveSessionModel(sessionId, modelId) {
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (session) session.model_id = modelId;
+  try {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: modelId }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    console.error('Failed to save the chat model:', err);
   }
 }
 

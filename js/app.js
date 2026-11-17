@@ -1,4 +1,4 @@
-import { checkAuth, loadSession, deleteSession, loadSessions, login, logout } from './api.js';
+import { checkAuth, loadSession, deleteSession, loadSessions, login, logout, saveSessionModel } from './api.js';
 import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
@@ -21,6 +21,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // Show the model that is actually selected, not the label hardcoded in the HTML.
   document.getElementById('model-label').textContent = state.currentModel.label;
+  // Each chat remembers its own model. A new chat that hasn't been sent yet has
+  // no session; its model is recorded when the session is created.
+  document.addEventListener('modelSelected', e => {
+    if (state.currentSessionId) saveSessionModel(state.currentSessionId, e.detail);
+  });
 
   // Header buttons
   document.addEventListener('auth-login', login);

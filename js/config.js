@@ -10,9 +10,34 @@ export const MODEL_OPTIONS = [
   { label: 'Gemini 4 Argon',    provider: 'gemini',    model: 'gemini-4-argon' },
   { label: 'Gemini 4 Hydrogen', provider: 'gemini',    model: 'gemini-4-hydrogen' },
   { label: 'Gemini 3.8 Flash',  provider: 'gemini',    model: 'gemini-3.8-flash' },
-  { label: 'DeepSeek V4 Pro',   provider: 'deepseek',  model: 'deepseek-v4-pro' },
+  // DeepSeek's model table lists V4 Pro as text-only ("Vision: Not supported").
+  { label: 'DeepSeek V4 Pro',   provider: 'deepseek',  model: 'deepseek-v4-pro', vision: false },
   { label: 'DeepSeek Flash',    provider: 'deepseek',  model: 'deepseek-flash' },
 ];
+
+/** Whether a model accepts image input (all listed models do unless marked `vision: false`). */
+export const supportsImages = (model) => model?.vision !== false;
+
+// Chats created before the model list was updated still store these ids.
+// Each maps to its closest current model (same provider and tier).
+export const LEGACY_MODEL_MAP = {
+  'gpt-5.5':                'gpt-6.1-sol',
+  'gpt-5.4-mini':           'gpt-6-luna',
+  'claude-opus-4-8':        'claude-opus-5-5',
+  'claude-sonnet-4-6':      'claude-sonnet-5-5',
+  'claude-haiku-4-5':       'claude-haiku-5-5',
+  'gemini-3.1-pro-preview': 'gemini-4-carbon',
+  'gemini-3.5-flash':       'gemini-3.8-flash',
+  'gemini-2.5-flash':       'gemini-3.8-flash',
+  'deepseek-v4-flash':      'deepseek-flash',
+  'deepseek-reasoner':      'deepseek-v4-pro',
+};
+
+/** The selectable model for a stored model id (old ids follow LEGACY_MODEL_MAP), or undefined. */
+export function findModel(modelId) {
+  const id = LEGACY_MODEL_MAP[modelId] || modelId;
+  return MODEL_OPTIONS.find((m) => m.model === id);
+}
 
 export const PROVIDERS = [
   { id: 'openai',     label: 'OpenAI',     placeholder: 'sk-...' },
