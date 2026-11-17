@@ -1,16 +1,21 @@
 import { signJWT } from '../_jwt.js';
 
 /**
+ * Dev mode: DEV_MODE=true, or the app is being served from this machine.
+ */
+function isDevMode(context) {
+  const { hostname } = new URL(context.request.url);
+  return context.env.DEV_MODE === 'true' || hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+/**
  * GET /api/auth/login → Serve local dev login form or redirect to Google OAuth.
  *
  * In dev mode (DEV_MODE=true or localhost), shows a simple email/name form.
  * In production, redirects to Google OAuth consent screen.
  */
 export async function onRequestGet(context) {
-  const isDevMode = context.env.DEV_MODE === 'true' ||
-    new URL(context.request.url).hostname === 'localhost';
-
-  if (isDevMode) {
+  if (isDevMode(context)) {
     return new Response(DEV_LOGIN_HTML, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
@@ -41,6 +46,12 @@ export async function onRequestGet(context) {
  * POST /api/auth/login → Handle local dev login (email + name form).
  */
 export async function onRequestPost(context) {
+  // Password-less email login is a local-development shortcut. Without this
+  // check anyone could POST here in production and get a session for any email.
+  if (!isDevMode(context)) {
+    return Response.json({ error: 'Not found' }, { status: 404 });
+  }
+
   try {
     const body = await context.request.json();
     const { email, name } = body;

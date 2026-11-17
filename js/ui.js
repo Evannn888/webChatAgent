@@ -1,23 +1,24 @@
 import { state } from './state.js';
 import { TOKEN_PRICING, MODEL_OPTIONS } from './config.js';
 
-// Removed _streamingRender flag
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
+// Safe for both text and attribute contexts (quotes are escaped too).
 export function escHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-export function formatUsage(usage) {
-  const total = (usage.input || 0) + (usage.output || 0);
-  const pricing = TOKEN_PRICING[state.currentModel.model];
+// Price with the model that produced the message, not whichever model is selected now.
+export function formatUsage(usage, modelId = state.currentModel.model) {
+  const input = usage.input || 0;
+  const output = usage.output || 0;
+  const pricing = TOKEN_PRICING[modelId];
   let costStr = '';
   if (pricing) {
-    const cost = (usage.input * pricing.input + (usage.output || 0) * pricing.output) / 1_000_000;
+    const cost = (input * pricing.input + output * pricing.output) / 1_000_000;
     costStr = ` · $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}`;
   }
-  return `🪙 ${usage.input}+${usage.output || 0} = ${total} tokens${costStr}`;
+  return `🪙 ${input}+${output} = ${input + output} tokens${costStr}`;
 }
 
 export function injectUsageBadge(msg) {
@@ -27,54 +28,52 @@ export function injectUsageBadge(msg) {
   if (existing) existing.remove();
   const badge = document.createElement('div');
   badge.className = 'msg-usage';
-  badge.textContent = formatUsage(msg.usage);
+  badge.textContent = formatUsage(msg.usage, msg.model);
   el.appendChild(badge);
 }
 
-const getMarkedOptions = (isStreaming) => ({
-  gfm: true, breaks: false,
-  highlight(code, lang) {
-    if (isStreaming) return escHtml(code);
-    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
-    if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
-    return escHtml(code);
-  }
-});
+const MARKED_OPTIONS = { gfm: true, breaks: false };
 
 export function renderMarkdown(text, options = {}) {
-  if (typeof marked === 'undefined') return escHtml(text);
-  const opts = getMarkedOptions(options.isStreaming);
+  // Model output is untrusted; never render it as HTML without the sanitizer.
+  if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') return escHtml(text);
   try {
-    // Protect <think>/</think> inside fenced code blocks by replacing with placeholders
-    const codeBlockPlaceholders = [];
-    const protectedText = text.replace(/```[\s\S]*?```|`[^`\n]+`/g, (match) => {
-      const idx = codeBlockPlaceholders.length;
-      codeBlockPlaceholders.push(match);
-      return `\x00CODE_BLOCK_${idx}\x00`;
+    // Hide code (fenced and inline) while splitting on <think> tags so a literal
+    // "<think>" inside code isn't treated as a reasoning block. The code is put
+    // back before each segment is parsed, so marked still renders it as code.
+    const codeBlocks = [];
+    const protectedText = text.replace(/```[\s\S]*?(?:```|$)|`[^`\n]+`/g, (match) => {
+      codeBlocks.push(match);
+      return `\x00CODE_BLOCK_${codeBlocks.length - 1}\x00`;
     });
+    const parse = (segment) => marked.parse(
+      segment.replace(/\x00CODE_BLOCK_(\d+)\x00/g, (_, idx) => codeBlocks[Number(idx)]),
+      MARKED_OPTIONS,
+    );
 
-    let result = '', remaining = protectedText;
+    let html = '';
+    let remaining = protectedText;
     while (remaining.length > 0) {
       const openIdx = remaining.indexOf('<think>');
-      if (openIdx === -1) { result += marked.parse(remaining, opts); break; }
-      if (openIdx > 0) result += marked.parse(remaining.slice(0, openIdx), opts);
+      if (openIdx === -1) { html += parse(remaining); break; }
+      if (openIdx > 0) html += parse(remaining.slice(0, openIdx));
       const closeIdx = remaining.indexOf('</think>', openIdx + 7);
-      const thinkContent = closeIdx === -1 ? remaining.slice(openIdx + 7) : remaining.slice(openIdx + 7, closeIdx);
-      let rendered = '';
-      if (thinkContent.trim()) {
-        try { rendered = marked.parse(thinkContent.trim(), opts); } catch { rendered = escHtml(thinkContent.trim()); }
-      }
-      result += '<details class="think-block" open><summary>Thinking Process</summary><div class="think-content">' + rendered + '</div></details>';
+      const thinkContent = (closeIdx === -1 ? remaining.slice(openIdx + 7) : remaining.slice(openIdx + 7, closeIdx)).trim();
+      html += '<details class="think-block" open><summary>Thinking Process</summary><div class="think-content">'
+        + (thinkContent ? parse(thinkContent) : '') + '</div></details>';
       if (closeIdx === -1) break;
       remaining = remaining.slice(closeIdx + 8);
     }
 
-    // Restore code block placeholders
-    result = result.replace(/\x00CODE_BLOCK_(\d+)\x00/g, (_, idx) => {
-      return escHtml(codeBlockPlaceholders[parseInt(idx)]);
-    });
-
-    return result;
+    const container = document.createElement('div');
+    container.innerHTML = DOMPurify.sanitize(html);
+    // Syntax highlighting only for the final render (too costly on every streaming tick).
+    if (!options.isStreaming && typeof hljs !== 'undefined') {
+      container.querySelectorAll('pre code').forEach((el) => {
+        try { hljs.highlightElement(el); } catch { /* unknown language: leave as plain code */ }
+      });
+    }
+    return container.innerHTML;
   } catch { return escHtml(text); }
 }
 
@@ -162,7 +161,7 @@ function createMessageEl(msg) {
   if (msg.usage && msg.usage.input > 0) {
     const usage = document.createElement('div');
     usage.className = 'msg-usage';
-    usage.textContent = formatUsage(msg.usage);
+    usage.textContent = formatUsage(msg.usage, msg.model);
     div.appendChild(usage);
   }
 
@@ -287,12 +286,17 @@ export function renderMessages() {
   empty.classList.add('hidden');
   container.classList.remove('hidden');
 
+  // Drop elements for messages that are no longer in state (e.g. after the same
+  // chat was reloaded with fresh message ids), otherwise they'd be duplicated.
+  const wantedIds = new Set(state.messages.map((m) => m.id));
   const existingIds = new Set();
   for (const child of Array.from(container.children)) {
     if (child.classList.contains('msg-error')) {
       child.remove();
     } else if (child.id === 'typing-indicator') {
       if (!state.isGenerating) child.remove();
+    } else if (!wantedIds.has(child.id)) {
+      child.remove();
     } else {
       existingIds.add(child.id);
     }
@@ -419,6 +423,9 @@ export function selectModel(modelId) {
 }
 
 export function handleInputKeydown(e) {
+  // Enter while an IME is composing (Chinese/Japanese/Korean input) only confirms
+  // the composition; it must not send the half-typed message.
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     import('./chat.js').then(({handleSend}) => handleSend());

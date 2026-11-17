@@ -1,15 +1,17 @@
 export const MODEL_OPTIONS = [
-  { label: 'GPT-5.5',           provider: 'openai',    model: 'gpt-5.5' },
-  { label: 'GPT-5.4 Mini',      provider: 'openai',    model: 'gpt-5.4-mini' },
-  { label: 'Claude Opus 4.8',   provider: 'claude',    model: 'claude-opus-4-8' },
-  { label: 'Claude Sonnet 4.6', provider: 'claude',    model: 'claude-sonnet-4-6' },
-  { label: 'Claude Haiku 4.5',  provider: 'claude',    model: 'claude-haiku-4-5' },
-  { label: 'Gemini 3.5 Flash',  provider: 'gemini',    model: 'gemini-3.5-flash' },
-  { label: 'Gemini 3.1 Pro',    provider: 'gemini',    model: 'gemini-3.1-pro-preview' },
-  { label: 'Gemini 2.5 Flash',  provider: 'gemini',    model: 'gemini-2.5-flash' },
+  { label: 'GPT-6.1 Sol',       provider: 'openai',    model: 'gpt-6.1-sol' },
+  { label: 'GPT-6 Astra',       provider: 'openai',    model: 'gpt-6-astra' },
+  { label: 'GPT-6 Luna',        provider: 'openai',    model: 'gpt-6-luna' },
+  { label: 'Claude Fable 5.2',  provider: 'claude',    model: 'claude-fable-5-2' },
+  { label: 'Claude Opus 5.5',   provider: 'claude',    model: 'claude-opus-5-5' },
+  { label: 'Claude Sonnet 5.5', provider: 'claude',    model: 'claude-sonnet-5-5' },
+  { label: 'Claude Haiku 5.5',  provider: 'claude',    model: 'claude-haiku-5-5' },
+  { label: 'Gemini 4 Carbon',   provider: 'gemini',    model: 'gemini-4-carbon' },
+  { label: 'Gemini 4 Argon',    provider: 'gemini',    model: 'gemini-4-argon' },
+  { label: 'Gemini 4 Hydrogen', provider: 'gemini',    model: 'gemini-4-hydrogen' },
+  { label: 'Gemini 3.8 Flash',  provider: 'gemini',    model: 'gemini-3.8-flash' },
   { label: 'DeepSeek V4 Pro',   provider: 'deepseek',  model: 'deepseek-v4-pro' },
-  { label: 'DeepSeek V4 Flash', provider: 'deepseek',  model: 'deepseek-v4-flash' },
-  { label: 'DeepSeek Reasoner', provider: 'deepseek',  model: 'deepseek-reasoner' },
+  { label: 'DeepSeek Flash',    provider: 'deepseek',  model: 'deepseek-flash' },
 ];
 
 export const PROVIDERS = [
@@ -20,16 +22,21 @@ export const PROVIDERS = [
   { id: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-...' },
 ];
 
+// USD per 1M tokens (standard tier, as of 2026-11).
+// Gemini 4 Carbon/Argon rise to $4 / $20 on 2026-12-01; Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01.
+// DeepSeek uses peak-hour rates (off-peak is half). Claude Haiku 5.5 is the <=100K-prompt rate.
 export const TOKEN_PRICING = {
-  'gpt-5.5':                { input: 2.00,  output: 8.00 },
-  'gpt-5.4-mini':           { input: 0.40,  output: 1.60 },
-  'claude-opus-4-8':        { input: 15.00, output: 75.00 },
-  'claude-sonnet-4-6':      { input: 3.00,  output: 15.00 },
-  'claude-haiku-4-5':       { input: 0.80,  output: 4.00 },
-  'gemini-3.5-flash':       { input: 0.15,  output: 0.60 },
-  'gemini-3.1-pro-preview': { input: 1.25,  output: 5.00 },
-  'gemini-2.5-flash':       { input: 0.15,  output: 0.60 },
-  'deepseek-v4-pro':        { input: 0.50,  output: 2.00 },
-  'deepseek-v4-flash':      { input: 0.10,  output: 0.40 },
-  'deepseek-reasoner':      { input: 0.55,  output: 2.19 },
+  'gpt-6.1-sol':        { input: 2.00,  output: 10.00 },
+  'gpt-6-astra':        { input: 10.00, output: 50.00 },
+  'gpt-6-luna':         { input: 0.10,  output: 0.50 },
+  'claude-fable-5-2':   { input: 8.00,  output: 40.00 },
+  'claude-opus-5-5':    { input: 4.00,  output: 20.00 },
+  'claude-sonnet-5-5':  { input: 2.00,  output: 10.00 },
+  'claude-haiku-5-5':   { input: 0.10,  output: 0.50 },
+  'gemini-4-carbon':    { input: 2.00,  output: 10.00 },
+  'gemini-4-argon':     { input: 2.00,  output: 10.00 },
+  'gemini-4-hydrogen':  { input: 1.50,  output: 7.50 },
+  'gemini-3.8-flash':   { input: 0.75,  output: 3.75 },
+  'deepseek-v4-pro':    { input: 1.32,  output: 3.96 },
+  'deepseek-flash':     { input: 0.30,  output: 1.20 },
 };

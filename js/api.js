@@ -37,11 +37,18 @@ export async function logout() {
   document.dispatchEvent(new CustomEvent('renderSessions'));
 }
 
+// Request counters: only the latest call may apply its result, so a slow
+// response can't overwrite a newer one (fast typing / fast session switching).
+let sessionsSeq = 0;
+let sessionLoadSeq = 0;
+
 export async function loadSessions(query = '') {
+  const seq = ++sessionsSeq;
   try {
     const res = await fetch(`/api/sessions${query ? `?q=${encodeURIComponent(query)}` : ''}`);
     const data = await res.json();
-    if (data.sessions) { 
+    if (seq !== sessionsSeq) return;
+    if (data.sessions) {
       state.sessions = data.sessions; 
       state.lastSearchQuery = query;
       document.dispatchEvent(new CustomEvent('renderSessions')); 
@@ -52,6 +59,7 @@ export async function loadSessions(query = '') {
 }
 
 export async function loadSession(id) {
+  const seq = ++sessionLoadSeq;
   state.error = null;
   state.currentSessionId = id; 
   localStorage.setItem('currentSessionId', id);
@@ -68,9 +76,14 @@ export async function loadSession(id) {
     }
   }
   document.dispatchEvent(new CustomEvent('renderSessions'));
+  // Superseded by a newer load, or the user started a new chat meanwhile.
+  const stale = () => seq !== sessionLoadSeq || state.currentSessionId !== id;
   try {
-    const res = await fetch(`/api/sessions/${id}`);
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+    if (stale()) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (stale()) return;
     if (data.messages) {
       state.messages = data.messages.map(m => parseMessage({ id: nextId(), role: m.role, content: m.content }));
       document.dispatchEvent(new CustomEvent('renderMessages'));
@@ -82,7 +95,8 @@ export async function loadSession(id) {
 
 export async function deleteSession(id) {
   try {
-    await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     state.sessions = state.sessions.filter(s => s.id !== id);
     document.dispatchEvent(new CustomEvent('renderSessions'));
     return true;
@@ -190,9 +204,17 @@ export async function generateSessionTitle(prompt) {
 
     if (!res.ok) return;
 
+    // On a provider error or refusal keep 'New Chat' rather than saving the
+    // error/refusal text as the session title.
+    const reader = res.body.getReader();
     let title = '';
-    for await (const chunk of parseSSE(res.body.getReader())) {
-      if (chunk.type === 'text') title += chunk.data;
+    try {
+      for await (const chunk of parseSSE(reader)) {
+        if (chunk.type === 'text') title += chunk.data;
+        else if (chunk.type === 'error' || chunk.type === 'refusal') return;
+      }
+    } finally {
+      reader.cancel().catch(() => {});
     }
 
     // Remove <think>...</think> blocks if the LLM outputted them (even if unclosed)

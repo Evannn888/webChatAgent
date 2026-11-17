@@ -34,8 +34,8 @@ export async function onRequestPatch(context) {
   try {
     const body = await context.request.json();
 
-    if (body.title) {
-      const title = body.title.slice(0, 200);
+    if (typeof body.title === 'string' && body.title.trim()) {
+      const title = body.title.trim().slice(0, 200);
       await context.env.DB.prepare(
         'UPDATE session SET title = ? WHERE id = ? AND user_id = ?'
       ).bind(title, sessionId, user.sub).run();

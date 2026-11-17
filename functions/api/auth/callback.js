@@ -74,13 +74,10 @@ export async function onRequestGet(context) {
 
     // 5. Redirect with session cookie and clear oauth_state
     const redirectUrl = new URL('/', context.env.SITE_URL).toString();
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: redirectUrl,
-        'Set-Cookie': `session=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
-      },
-    });
+    const headers = new Headers({ Location: redirectUrl });
+    headers.append('Set-Cookie', `session=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+    headers.append('Set-Cookie', 'oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    return new Response(null, { status: 302, headers });
   } catch (err) {
     console.error('OAuth callback error:', err);
     return new Response('Internal server error during authentication', { status: 500 });

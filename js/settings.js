@@ -50,7 +50,7 @@ export async function saveKey(provider) {
   if (!key) return;
   try {
     const res = await fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to save'); }
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Failed to save'); }
     const data = await res.json();
     input.value = '';
     showSettingsAlert('success', `${provider} key saved`);
@@ -66,7 +66,8 @@ export async function saveKey(provider) {
 
 export async function deleteKey(id) {
   try {
-    await fetch(`/api/keys?id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/keys?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     savedKeys = savedKeys.filter(k => k.id !== id);
     renderSettingsForm(); showSettingsAlert('success', 'Key deleted');
   } catch { showSettingsAlert('error', 'Failed to delete key'); }

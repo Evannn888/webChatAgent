@@ -7,23 +7,32 @@ export async function handleFileSelect(event) {
   fileInput.value = '';
 }
 
+// Keep encoded images comfortably under provider per-image limits (~5 MB).
+const MAX_IMAGE_BASE64 = 3_500_000;
+
 export async function processFiles(rawFiles) {
   for (const file of Array.from(rawFiles)) {
-    if (file.type.startsWith('image/')) {
-      const resized = await resizeImage(file, 1600, 0.8);
-      state.files.push({ name: file.name, type: file.type, content: resized });
-    } else if (file.type === 'application/pdf') {
-      try { state.files.push({ name: file.name, type: file.type, content: await extractPDFText(file) }); }
-      catch { state.files.push({ name: file.name, type: file.type, content: '[PDF text extraction failed]' }); }
-    } else if (file.type.startsWith('text/')) {
-      state.files.push({ name: file.name, type: file.type, content: await file.text() });
-    } else {
-      showInputError(`File type not supported: ${file.name}`);
+    // One unreadable file (e.g. HEIC the browser can't decode) must not abort the rest.
+    try {
+      if (file.type.startsWith('image/')) {
+        const { data, mediaType } = await resizeImage(file, 1600, 0.8);
+        state.files.push({ name: file.name, type: mediaType, data, isImage: true });
+      } else if (file.type === 'application/pdf') {
+        try { state.files.push({ name: file.name, type: file.type, content: await extractPDFText(file) }); }
+        catch { state.files.push({ name: file.name, type: file.type, content: '[PDF text extraction failed]' }); }
+      } else if (file.type.startsWith('text/')) {
+        state.files.push({ name: file.name, type: file.type, content: await file.text() });
+      } else {
+        showInputError(`File type not supported: ${file.name}`);
+      }
+    } catch {
+      showInputError(`Could not read ${file.name}`);
     }
   }
   renderFilePreview(); updateSendBtn();
 }
 
+/** Downscale and re-encode an image. Resolves { data: base64 (no header), mediaType }. */
 function resizeImage(file, maxDim, quality) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -37,9 +46,23 @@ function resizeImage(file, maxDim, quality) {
       }
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-      resolve(canvas.toDataURL(mimeType, quality).split(',')[1]); // Base64 without header
+      const ctx = canvas.getContext('2d');
+      const encode = (mediaType) => {
+        ctx.clearRect(0, 0, width, height);
+        // JPEG has no alpha channel: paint transparent areas white instead of black.
+        if (mediaType === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height); }
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas.toDataURL(mediaType, quality).split(',')[1];
+      };
+      // PNG keeps screenshots/text sharp; everything else (and oversized PNGs) becomes JPEG.
+      // The returned mediaType always matches the bytes actually produced.
+      let mediaType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      let data = encode(mediaType);
+      if (mediaType === 'image/png' && data.length > MAX_IMAGE_BASE64) {
+        mediaType = 'image/jpeg';
+        data = encode(mediaType);
+      }
+      resolve({ data, mediaType });
     };
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Failed to load image')); };
     img.src = objectUrl;

@@ -3,7 +3,7 @@ import { handleSend, clearChat, stopGenerating } from './chat.js';
 import { 
   toggleSidebar, toggleTheme, toggleModelMenu, closeModelMenu, selectModel, 
   handleInputKeydown, adjustHeight, renderFilePreview, updateSendBtn,
-  renderAuth, renderMessages, renderSessions, syncGenerating
+  renderAuth, renderMessages, renderSessions, syncGenerating, showInputError
 } from './ui.js';
 import { openSettings, closeSettingsModal, saveKey, deleteKey } from './settings.js';
 import { handleFileSelect, initDragDrop } from './files.js';
@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('updateModelLabel', e => {
     document.getElementById('model-label').textContent = e.detail;
   });
+  // Show the model that is actually selected, not the label hardcoded in the HTML.
+  document.getElementById('model-label').textContent = state.currentModel.label;
 
   // Header buttons
   document.addEventListener('auth-login', login);
@@ -109,20 +111,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const id = delBtn.getAttribute('data-id');
         const deleted = await deleteSession(id);
-        if (deleted && state.currentSessionId === id) {
+        if (!deleted) {
+          showInputError('Failed to delete chat. Please try again.');
+        } else if (state.currentSessionId === id) {
           clearChat();
         }
         return;
       }
       const item = e.target.closest('.session-item');
       if (item) {
-        stopGenerating();
+        const id = item.getAttribute('data-id');
         const searchInput = document.getElementById('search-input');
         if (searchInput && searchInput.value) {
           searchInput.value = '';
           loadSessions();
         }
-        loadSession(item.getAttribute('data-id'));
+        // Re-clicking the open chat used to abort its in-progress reply and reload it.
+        if (id === state.currentSessionId) return;
+        stopGenerating();
+        loadSession(id);
       }
     }
 

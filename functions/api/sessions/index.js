@@ -12,7 +12,8 @@ export async function onRequestGet(context) {
 
     let results;
     if (q) {
-      const escapedQuery = q.replace(/[%_]/g, '\\$&');
+      // Escape the LIKE wildcards and the escape character itself.
+      const escapedQuery = q.replace(/[\\%_]/g, '\\$&');
       const pattern = `%${escapedQuery}%`;
       const queryResult = await context.env.DB.prepare(`
         SELECT DISTINCT id, title, model_id, created_at, updated_at FROM (
